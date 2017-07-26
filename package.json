@@ -1,0 +1,19 @@
+{
+  "name": "jet-analyser",
+  "version": "1.0.0",
+  "description": "js utils for module depends analyse",
+  "main": "index.js",
+  "scripts": {
+    "test": ""
+  },
+  "keywords": [
+    "amd",
+    "cmd",
+    "loader"
+  ],
+  "author": "chenrui09",
+  "license": "ISC",
+  "dependencies": {
+    "esprima": "^4.0.0"
+  }
+}
