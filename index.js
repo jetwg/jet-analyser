@@ -10,7 +10,7 @@ class Jet {
 
     }
 
-    analyse (params) {
+    analyseOne (params) {
         let sourceCode = params.code || '';
         let codeType = params.type || 'js';
         let modulePath = params.modulePath || '';
@@ -33,6 +33,19 @@ class Jet {
             .walk(astTree);
 
         return result;
+    }
+
+    analyse (params) {
+        if (params instanceof Array) {
+            let self = this;
+            let result = params.map(item => {
+                return self.analyseOne(item);
+            });
+
+            return result;
+        } else {
+            return this.analyseOne(params);
+        }
     }
 };
 

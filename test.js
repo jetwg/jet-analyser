@@ -23,11 +23,26 @@ define(function () {
     amdWrapper: false
 });
 
-console.log('>>>>>', output);
+console.log('>>>>>', JSON.stringify(output, null, 4));
 /*
->>>>> { 'moduleA/b/c/d':
-   { depends: [ 'components/compA', 'components/compB', 'utils/utilC' ],
-     requires: [ 'components/compA', 'components/compB' ] } }
+>>>>> {
+    "state": "success",
+    "output": "",
+    "defines": {
+        "moduleA/b/c/d": {
+            "depends": [
+                "components/compA",
+                "components/compB",
+                "utils/utilC"
+            ],
+            "requires": [
+                "components/compA",
+                "components/compB"
+            ]
+        }
+    },
+    "logs": []
+}
 */
 
 /*===== CASE 2 ====*/
@@ -40,11 +55,23 @@ var compC = require('../e/compC');
     amdWrapper: true
 });
 
-console.log('>>>>>', output);
+console.log('>>>>>', JSON.stringify(output, null, 4));
 /*
->>>>> { 'moduleA/b/c/d':
-   { depends: [ 'moduleA/b/c/e/compC' ],
-     requires: [ 'moduleA/b/c/e/compC' ] } }
+>>>>> {
+    "state": "success",
+    "output": "",
+    "defines": {
+        "moduleA/b/c/d": {
+            "depends": [
+                "moduleA/b/c/e/compC"
+            ],
+            "requires": [
+                "moduleA/b/c/e/compC"
+            ]
+        }
+    },
+    "logs": []
+}
 */
 
 /*===== CASE 3 ====*/
@@ -63,12 +90,31 @@ define('moduleB/ccc', ['moduleB/eee'], function () {
     amdWrapper: false
 });
 
-console.log('>>>>>', output);
+console.log('>>>>>', JSON.stringify(output, null, 4));
 /*
->>>>> { 'moduleA/b/c/d':
-   { depends: [ 'components/compA' ],
-     requires: [ 'components/compA' ] },
-  'moduleB/ccc': { depends: [ 'moduleB/eee' ], requires: [ 'moduleB/eee' ] } }
+>>>>> {
+    "state": "success",
+    "output": "",
+    "defines": {
+        "moduleA/b/c/d": {
+            "depends": [
+                "components/compA"
+            ],
+            "requires": [
+                "components/compA"
+            ]
+        },
+        "moduleB/ccc": {
+            "depends": [
+                "moduleB/eee"
+            ],
+            "requires": [
+                "moduleB/eee"
+            ]
+        }
+    },
+    "logs": []
+}
 */
 
 /*===== CASE 4 ====*/
@@ -87,11 +133,27 @@ define(['module', 'exports', 'require', 'components/compA'], function (module, e
     amdWrapper: false
 });
 
-console.log('>>>>>', output);
+console.log('>>>>>', JSON.stringify(output, null, 4));
 /*
->>>>> { 'moduleA/b/c/d':
-   { depends: [ 'components/compA', 'components/compB', 'components/compC' ],
-     requires: [ 'components/compA', 'components/compB' ] } }
+>>>>> {
+    "state": "success",
+    "output": "",
+    "defines": {
+        "moduleA/b/c/d": {
+            "depends": [
+                "components/compA",
+                "components/compB",
+                "components/compC"
+            ],
+            "requires": [
+                "components/compA",
+                "components/compB"
+            ]
+        }
+    },
+    "logs": []
+}
+
 */
 
 /*===== CASE 5 ====*/
@@ -112,13 +174,33 @@ var compB = require('components/compB');
     amdWrapper: false
 });
 
-console.log('>>>>>', output);
+console.log('>>>>>', JSON.stringify(output, null, 4));
 /*
-ERROR 出现嵌套define语法
-ERROR 出现无模块的require语法
->>>>> { 'moduleA/b/c/d':
-   { depends: [ 'components/compA' ],
-     requires: [ 'components/compA' ] } }
+>>>>> {
+    "state": "success",
+    "output": "",
+    "defines": {
+        "moduleA/b/c/d": {
+            "depends": [
+                "components/compA"
+            ],
+            "requires": [
+                "components/compA"
+            ]
+        }
+    },
+    "logs": [
+        {
+            "type": "error",
+            "message": "出现嵌套define语法"
+        },
+        {
+            "type": "error",
+            "message": "出现无模块的require语法"
+        }
+    ]
+}
+
 */
 
 
@@ -130,9 +212,9 @@ output = jet.analyse({
     modulePath: 'moduleA/b/c/d',
     amdWrapper: false
 });
-*/
 
-console.log('>>>>>', output);
+console.log('>>>>>', JSON.stringify(output, null, 4));
+*/
 /*
 
 */

@@ -59,7 +59,12 @@ class Walker {
     config (params) {
         this.modulePath = params.modulePath;
         this.hooks = params.hooks;
-        this.result = {};
+        this.result = {
+            state: 'success',
+            output: '',
+            defines: {},
+            logs: []
+        };
         this.defines = {};
 
         return this;
@@ -77,23 +82,24 @@ class Walker {
     mergeDepends (result) {
         let self = this;
         let currResult;
+        let resDefines = this.result.defines;
 
         if (result.define === '__current__') {
             this.current = this.modulePath;
-            this.result[this.modulePath] = {
+            resDefines[this.modulePath] = {
                 depends: [],
                 requires: []
             }
         }
         else if (result.define) {
             this.current = result.define;
-            this.result[result.define] = {
+            resDefines[result.define] = {
                 depends: [],
                 requires: []
             }
         }
 
-        currResult = this.result[this.current];
+        currResult = resDefines[this.current];
 
         result.depends.length && result.depends.forEach(dep => {
             dep = self.getAbsolutePath(this.current, dep);
@@ -116,7 +122,11 @@ class Walker {
             for (let id in this.defines) {
                 if (nodeId.length > id.length && nodeId.substring(0, id.length) === id) {
                     // define需要避免冲突外层define模块
-                    console.error('ERROR', '出现嵌套define语法');
+                    // 
+                    this.result.logs.push({
+                        type: 'error',
+                        message: '出现嵌套define语法'
+                    });
                     return false;
                 }
             }
@@ -133,7 +143,10 @@ class Walker {
                     return true;
                 }
             }
-            console.error('ERROR', '出现无模块的require语法');
+            this.result.logs.push({
+                type: 'error',
+                message: '出现无模块的require语法'
+            });
             return false;
         }
     }
