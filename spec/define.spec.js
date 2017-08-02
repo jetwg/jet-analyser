@@ -1,4 +1,4 @@
-describe("Jet 分析工具测试", function() {
+describe("依赖分析测试", function() {
     var jet = require("../index");
 
     it("匿名无依赖模块分析", function() {
@@ -9,7 +9,7 @@ describe("Jet 分析工具测试", function() {
                     // 未声明依赖，需要分析模块内部同步 require，作为 depends
                     var a = require("c/d");
                     var b = require("./e");
-                    // 不管是否声明依赖，都需要分析内部的异步 require
+                    // 分析内部的异步 require, 作为 requires
                     var c = require(["i/j", "./f"]);
                 });
             }),
@@ -33,11 +33,11 @@ describe("Jet 分析工具测试", function() {
             code: this.getFunctionBody(function() {
                 define(["c/d", "e/f"], function(d) {
                     // 已经声明依赖的，不再分析模块内部同步 require
-                    // FIXME 或者只是判断是否匹配，如果不匹配则报警
+                    // FIXME 或者分析出来，判断是否在依赖中已经声明，如果未声明则报警
                     var a = require("c/d");
-                    // FIXME 由于依赖里面没有指名 require，所以可能需要报警
+                    // TODO 由于依赖关系里面没有指名 require，所以需要报警
                     var b = require("./e");
-                    // 不管是否声明依赖，都需要分析内部的异步 require
+                    // 分析内部的异步 require
                     var c = require(["g/h", "i/j"]);
                 });
             }),
