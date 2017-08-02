@@ -15,7 +15,7 @@ function makeDepends (argument, nextArg, result, callee) {
     if (type === 'Literal') {
         // 字符串表达式，即CMD引用模块
         result.depends.push(value);
-        result.requires.push(value);
+        // result.requires.push(value);
     }
     else if (type === 'ArrayExpression') {
         // 数组表达式，即AMD引用模块
@@ -31,9 +31,10 @@ function makeDepends (argument, nextArg, result, callee) {
                     // 内部模块不做处理
                 }
                 else {
-                    result.depends.push(arg.value);
                     // define调用需要特殊处理
                     if (callee.name === 'define') {
+                        result.depends.push(arg.value);
+                    } else {
                         result.requires.push(arg.value);
                     }
                 }

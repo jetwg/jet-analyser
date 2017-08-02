@@ -32,12 +32,10 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
         "moduleA/b/c/d": {
             "depends": [
                 "components/compA",
-                "components/compB",
-                "utils/utilC"
+                "components/compB"
             ],
             "requires": [
-                "components/compA",
-                "components/compB"
+                "utils/utilC"
             ]
         }
     },
@@ -65,9 +63,7 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
             "depends": [
                 "moduleA/b/c/e/compC"
             ],
-            "requires": [
-                "moduleA/b/c/e/compC"
-            ]
+            "requires": []
         }
     },
     "logs": []
@@ -100,17 +96,13 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
             "depends": [
                 "components/compA"
             ],
-            "requires": [
-                "components/compA"
-            ]
+            "requires": []
         },
         "moduleB/ccc": {
             "depends": [
                 "moduleB/eee"
             ],
-            "requires": [
-                "moduleB/eee"
-            ]
+            "requires": []
         }
     },
     "logs": []
@@ -142,18 +134,15 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
         "moduleA/b/c/d": {
             "depends": [
                 "components/compA",
-                "components/compB",
-                "components/compC"
+                "components/compB"
             ],
             "requires": [
-                "components/compA",
-                "components/compB"
+                "components/compC"
             ]
         }
     },
     "logs": []
 }
-
 */
 
 /*===== CASE 5 ====*/
@@ -184,9 +173,7 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
             "depends": [
                 "components/compA"
             ],
-            "requires": [
-                "components/compA"
-            ]
+            "requires": []
         }
     },
     "logs": [
@@ -200,7 +187,6 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
         }
     ]
 }
-
 */
 
 
