@@ -49,6 +49,61 @@ let AST_PROPS = {
     'TemplateElement':[],
 };
 
+/**
+ * 相对id转换成绝对id
+ *
+ * @inner
+ * @param {string} id 要转换的相对id
+ * @param {string} baseId 当前所在环境id
+ * @return {string} 绝对id
+ */
+function relative2absolute (id, baseId) {
+    if (id.indexOf('.') !== 0) {
+        return id;
+    }
+
+    let segs = baseId.split('/').slice(0, -1).concat(id.split('/'));
+    let res = [];
+    for (let i = 0; i < segs.length; i++) {
+        let seg = segs[i];
+
+        switch (seg) {
+            case '.':
+                break;
+            case '..':
+                if (res.length && res[res.length - 1] !== '..') {
+                    res.pop();
+                }
+                else { // allow above root
+                    res.push(seg);
+                }
+                break;
+            default:
+                seg && res.push(seg);
+        }
+    }
+
+    return res.join('/');
+}
+
+class ModuleExpressionNode {
+    
+    constructor (nodeId, config) {
+        this.nodeId = nodeId;
+        this.type = 'require';
+
+        if (config.define) {
+            this.type = 'define';
+            this.moduleId = config.define;
+        }
+
+        this.nostate = config.nostate;
+        this.async = config.async;
+        this.depends = config.depends;
+        this.requires = config.requires;
+    }
+}
+
 
 class Walker {
 
@@ -71,12 +126,12 @@ class Walker {
     }
 
     getAbsolutePath (current, filePath) {
-        if (/^(\.\/|\.\.\/)/.test(filePath)) {
-            filePath = path.join(current, filePath);
-            filePath = filePath.split(path.sep).join('/');
-        }
+        // if (/^(\.\/|\.\.\/)/.test(filePath)) {
+        //     filePath = path.join(current, filePath);
+        //     filePath = filePath.split(path.sep).join('/');
+        // }
 
-        return filePath;
+        return relative2absolute(filePath, current);
     }
 
     mergeDepends (result) {
@@ -116,9 +171,12 @@ class Walker {
         });
     }
 
-    checkDefines (nodeId, defineId) {
+    checkDefines (meNode) {
+        let nodeId = meNode.nodeId;
+        let defNode;
+
         // 处理define函数
-        if (defineId) {
+        if (meNode.type === 'define') {
             for (let id in this.defines) {
                 if (nodeId.length > id.length && nodeId.substring(0, id.length) === id) {
                     // define需要避免冲突外层define模块
@@ -131,15 +189,26 @@ class Walker {
                 }
             }
             // 保存符合规则的define模块
-            this.defines[nodeId] = defineId;
+            this.defines[nodeId] = meNode;
 
             return true;
         }
         // 处理require及其他函数
-        else {
+        else if (meNode.type === 'require') {
             for (let id in this.defines) {
+                defNode = this.defines[id];
+
                 if (nodeId.length > id.length && nodeId.substring(0, id.length) === id) {
                     // require依赖外层define模块
+                    // 如果出现同步require，外层define模块有声明依赖，且未声明当前模板，则报错
+                    if (!meNode.async && !defNode.nostate && defNode.depends.indexOf(meNode.depends[0]) === -1) {
+                        this.result.logs.push({
+                            type: 'error',
+                            message: '出现未声明模块的require语法'
+                        });
+                        return false;
+                    }
+
                     return true;
                 }
             }
@@ -155,13 +224,15 @@ class Walker {
         let hooks = this.hooks;
         let type = node.type;
         let result;
+        let meNode;
 
         if (hooks && hooks.hasOwnProperty(type)) {
             result = hooks[type](node);
 
             if (result) {
+                meNode = new ModuleExpressionNode(nodeId, result);
                 // 分析语法外层define模块
-                if (!this.checkDefines(nodeId, result.define)) {
+                if (!this.checkDefines(meNode)) {
                     return false;
                 }
                 // 合入依赖分析的结果

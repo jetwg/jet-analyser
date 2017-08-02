@@ -191,16 +191,25 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
 
 
 /*===== CASE 6 ====*/
-/*
+
 output = jet.analyse({
-    code: fs.readFileSync('xx/xxx.js', 'utf-8'),
+    code: `
+define(["c/d", "e/f"], function(d) {
+    // 已经声明依赖的，不再分析模块内部同步 require
+    // FIXME 或者分析出来，判断是否在依赖中已经声明，如果未声明则报警
+    var a = require("c/d");
+    // TODO 由于依赖关系里面没有指名 require，所以需要报警
+    var b = require("./e");
+    // 分析内部的异步 require
+    var c = require(["g/h", "i/j"]);
+});
+    `,
     type: 'js',
-    modulePath: 'moduleA/b/c/d',
+    modulePath: 'a/c',
     amdWrapper: false
 });
 
 console.log('>>>>>', JSON.stringify(output, null, 4));
-*/
 /*
 
 */
