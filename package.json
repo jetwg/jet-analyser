@@ -4,7 +4,7 @@
   "description": "js utils for module depends analyse",
   "main": "index.js",
   "scripts": {
-    "test": ""
+    "test": "jasmine"
   },
   "keywords": [
     "amd",
@@ -15,5 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "esprima": "^4.0.0"
+  },
+  "devDependencies": {
+    "jasmine": "^2.6.0"
   }
 }
