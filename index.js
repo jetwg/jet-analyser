@@ -19,7 +19,7 @@ class Jet {
 
         if (params.amdWrapper) {
             sourceCode = 
-`define(function () {
+`define(function (require, exports, module) {
     ${sourceCode}
 });`;
         }

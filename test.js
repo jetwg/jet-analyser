@@ -3,6 +3,12 @@ const fs = require('fs');
 const jet = require('./index');
 
 let output;
+let index = 0;
+
+function print (name, output) {
+    fs.writeFile('./exports/' + index + '.js', 'Before\n' + output.input + '\n\nAfter\n' + output.output);
+    fs.writeFile('./exports/' + index++ + '.js.map', JSON.stringify(output, null, 4));
+}
 
 /*===== CASE 1 ====*/
 output = jet.analyse({
@@ -23,7 +29,7 @@ define(function () {
     amdWrapper: false
 });
 
-console.log('>>>>>', JSON.stringify(output, null, 4));
+print('>>>>>', output);
 /*
 >>>>> {
     "state": "success",
@@ -53,7 +59,7 @@ var compC = require('../e/compC');
     amdWrapper: true
 });
 
-console.log('>>>>>', JSON.stringify(output, null, 4));
+print('>>>>>', output);
 /*
 >>>>> {
     "state": "success",
@@ -86,7 +92,7 @@ define('moduleB/ccc', ['moduleB/eee'], function () {
     amdWrapper: false
 });
 
-console.log('>>>>>', JSON.stringify(output, null, 4));
+print('>>>>>', output);
 /*
 >>>>> {
     "state": "success",
@@ -125,7 +131,7 @@ define(['module', 'exports', 'require', 'components/compA'], function (module, e
     amdWrapper: false
 });
 
-console.log('>>>>>', JSON.stringify(output, null, 4));
+print('>>>>>', output);
 /*
 >>>>> {
     "state": "success",
@@ -163,7 +169,7 @@ var compB = require('components/compB');
     amdWrapper: false
 });
 
-console.log('>>>>>', JSON.stringify(output, null, 4));
+print('>>>>>', output);
 /*
 >>>>> {
     "state": "success",
@@ -194,14 +200,17 @@ console.log('>>>>>', JSON.stringify(output, null, 4));
 
 output = jet.analyse({
     code: `
-define(["c/d", "e/f"], function(d) {
-    // 已经声明依赖的，不再分析模块内部同步 require
-    // FIXME 或者分析出来，判断是否在依赖中已经声明，如果未声明则报警
-    var a = require("c/d");
-    // TODO 由于依赖关系里面没有指名 require，所以需要报警
-    var b = require("./e");
-    // 分析内部的异步 require
-    var c = require(["g/h", "i/j"]);
+define(function(__renamed_require__) {
+    // 未声明依赖，需要分析模块内部同步 require，作为 depends
+    var a = __renamed_require__("c/d");
+    var b = __renamed_require__("./e");
+    var c = require("f/g");
+    // TODO 用了全局 require 来加载相对路径，需要报错
+    var d = require("./h");
+    // 分析内部的异步 require, 作为 requires
+    __renamed_require__(["i/j", "./k"]);
+    // TODO 用了全局 require 来加载相对路径，需要报错
+    require(["l/m", "./n"]);
 });
     `,
     type: 'js',
@@ -209,7 +218,7 @@ define(["c/d", "e/f"], function(d) {
     amdWrapper: false
 });
 
-console.log('>>>>>', JSON.stringify(output, null, 4));
+print('>>>>>', output);
 /*
 
 */
