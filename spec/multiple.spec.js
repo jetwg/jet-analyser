@@ -25,7 +25,7 @@ describe("一个文件定义多个模块", function() {
                 });
             }),
             type: "js",
-            modulePath: "a/b",
+            baseId: "a/b",
             amdWrapper: false
         });
 
@@ -83,7 +83,7 @@ describe("一个文件定义多个模块", function() {
                 });
             }),
             type: "js",
-            modulePath: "a/b",
+            baseId: "a/b",
             amdWrapper: false
         });
 

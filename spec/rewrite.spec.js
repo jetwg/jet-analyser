@@ -18,7 +18,7 @@ describe("require 被重写测试", function() {
                 });
             }),
             type: "js",
-            modulePath: "a/b",
+            baseId: "a/b",
             amdWrapper: false
         });
 
@@ -55,7 +55,7 @@ describe("require 被重写测试", function() {
                 });
             }),
             type: "js",
-            modulePath: "a/b",
+            baseId: "a/b",
             amdWrapper: false
         });
 
@@ -90,8 +90,8 @@ describe("require 被重写测试", function() {
                 });
             }),
             type: "js",
-            // 如果 modulePath 与具名 define 不一致，以 define 为准
-            modulePath: "x/y",
+            // 如果 baseId 与具名 define 不一致，以 define 为准
+            baseId: "x/y",
             amdWrapper: false
         });
 
@@ -124,8 +124,8 @@ describe("require 被重写测试", function() {
                 });
             }),
             type: "js",
-            // 如果 modulePath 与具名 define 不一致，以 define 为准
-            modulePath: "x/y",
+            // 如果 baseId 与具名 define 不一致，以 define 为准
+            baseId: "x/y",
             amdWrapper: false
         });
 
