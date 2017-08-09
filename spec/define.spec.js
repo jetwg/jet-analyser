@@ -18,6 +18,11 @@ describe("依赖分析测试", function() {
             amdWrapper: false
         });
 
+        (new Function("define", result.output))((id, deps, factory) => {
+            expect(id).toEqual("a/b");
+            expect(deps).toEqual(["require", "c/d", "a/e"]);
+            expect(factory.length).toEqual(1);
+        });
         expect(result.defines).toEqual({
             "a/b": {
                 depends: ["c/d", "a/e"],
@@ -43,6 +48,12 @@ describe("依赖分析测试", function() {
             type: "js",
             modulePath: "a/b",
             amdWrapper: false
+        });
+
+        (new Function("define", result.output))((id, deps, factory) => {
+            expect(id).toEqual("a/b");
+            expect(deps).toEqual(["require", "c/d", "e/f"]);
+            expect(factory.length).toEqual(1);
         });
 
         expect(result.defines).toEqual({
@@ -72,6 +83,12 @@ describe("依赖分析测试", function() {
             amdWrapper: false
         });
 
+        (new Function("define", result.output))((id, deps, factory) => {
+            expect(id).toEqual("a/b");
+            expect(deps).toEqual(["require", "c/d", "a/e"]);
+            expect(factory.length).toEqual(1);
+        });
+
         expect(result.defines).toEqual({
             "a/b": {
                 depends: ["c/d", "a/e"],
@@ -96,6 +113,12 @@ describe("依赖分析测试", function() {
             // 如果 modulePath 与具名 define 不一致，以 define 为准
             modulePath: "x/y",
             amdWrapper: false
+        });
+
+        (new Function("define", result.output))((id, deps, factory) => {
+            expect(id).toEqual("a/b");
+            expect(deps).toEqual(["require", "c/d", "e/f"]);
+            expect(factory.length).toEqual(1);
         });
 
         expect(result.defines).toEqual({

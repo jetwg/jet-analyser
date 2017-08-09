@@ -1,5 +1,7 @@
 describe("一个文件定义多个模块", function() {
     var jet = require("../index");
+    const esprima = require('esprima');
+    const escodegen = require('escodegen');
 
     it("多个具名模块", function() {
 
@@ -26,6 +28,25 @@ describe("一个文件定义多个模块", function() {
             modulePath: "a/b",
             amdWrapper: false
         });
+
+        expect(escodegen.generate(esprima.parse(result.output))).toEqual(escodegen.generate(esprima.parse(this.getFunctionBody(function() {
+            define('c/d', ["require", "g/h", "c/i"], function(require) {
+                // 未声明依赖，需要分析模块内部同步 require，作为 depends
+                var a = require("g/h");
+                var b = require("./i");
+                // 分析内部的异步 require, 作为 requires
+                var c = require(["j/k", "./l"]);
+            });
+
+            define('e/f', ["require", "m/n", "e/o"], function(require) {
+                // 未声明依赖，需要分析模块内部同步 require，作为 depends
+                var a = require("m/n");
+                var b = require("./o");
+                // 分析内部的异步 require, 作为 requires
+                var c = require(["p/q", "./r"]);
+
+            });
+        }))));
 
         expect(result.defines).toEqual({
             "c/d": {
@@ -65,6 +86,25 @@ describe("一个文件定义多个模块", function() {
             modulePath: "a/b",
             amdWrapper: false
         });
+
+        expect(escodegen.generate(esprima.parse(result.output))).toEqual(escodegen.generate(esprima.parse(this.getFunctionBody(function() {
+            define('c/d', ["require", "g/h", "c/i"], function(require) {
+                // 未声明依赖，需要分析模块内部同步 require，作为 depends
+                var a = require("g/h");
+                var b = require("./i");
+                // 分析内部的异步 require, 作为 requires
+                var c = require(["j/k", "./l"]);
+            });
+
+            define("a/b", ["require", "m/n", "a/o"], function(require) {
+                // 未声明依赖，需要分析模块内部同步 require，作为 depends
+                var a = require("m/n");
+                var b = require("./o");
+                // 分析内部的异步 require, 作为 requires
+                var c = require(["p/q", "./r"]);
+
+            });
+        }))));
 
         expect(result.defines).toEqual({
             "c/d": {
