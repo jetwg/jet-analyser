@@ -1,5 +1,5 @@
 describe("require 被重写测试", function() {
-    var jet = require("../index");
+    var jet = require("..");
 
     it("匿名无依赖模块分析", function() {
 

@@ -2,7 +2,7 @@
   "name": "jet-analyser",
   "version": "1.0.0",
   "description": "js utils for module depends analyse",
-  "main": "index.js",
+  "main": "analyser.js",
   "scripts": {
     "test": "jasmine"
   },
@@ -15,7 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "escodegen": "^1.8.1",
-    "esprima": "^4.0.0"
+    "esprima": "^4.0.0",
+    "estemplate": "^0.5.1"
   },
   "devDependencies": {
     "jasmine": "^2.6.0"

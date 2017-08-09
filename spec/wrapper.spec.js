@@ -1,5 +1,5 @@
 describe("CMD Wrapper 测试", function() {
-    var jet = require("../index");
+    var jet = require("..");
     const esprima = require('esprima');
     const escodegen = require('escodegen');
 

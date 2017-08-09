@@ -1,5 +1,5 @@
 describe("一个文件定义多个模块", function() {
-    var jet = require("../index");
+    var jet = require("..");
     const esprima = require('esprima');
     const escodegen = require('escodegen');
 
