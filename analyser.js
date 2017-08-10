@@ -65,6 +65,9 @@ function walk(node, parent, hook, ctx) {
     let value;
     let hookName;
     let ret;
+
+    if (!node) return;
+
     type = node.type;
 
     hookName = type;
