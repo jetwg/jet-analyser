@@ -85,6 +85,8 @@ function walk(node, hook, ctx) {
             }
 
         });
+    }else{
+        // TODO Unknow type??
     }
 
     return node;
