@@ -17,7 +17,8 @@
     "crypto": "0.0.3",
     "escodegen": "^1.8.1",
     "esprima": "^4.0.0",
-    "estemplate": "^0.5.1"
+    "estemplate": "^0.5.1",
+    "estraverse": "^4.2.0"
   },
   "devDependencies": {
     "jasmine": "^2.6.0"

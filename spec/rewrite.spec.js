@@ -143,4 +143,52 @@ describe("require 被重写测试", function() {
         });
 
     });
+
+    it("require 被形参重写", function() {
+
+        var result = jet.analyse({
+            code: this.getFunctionBody(function() {
+                define(function(require) {
+                    function a(require) {
+                        require(["x/y"]);
+                    }
+                });
+            }),
+            baseId: "a/b",
+            amdWrapper: false
+        });
+
+        expect(result.defines).toEqual({
+            "a/b": {
+                depends: [],
+                requires: [],
+            }
+        });
+    });
+
+    it("require 被 函数 重写", function() {
+
+        var result = jet.analyse({
+            code: this.getFunctionBody(function() {
+                define(function(req) {
+                    function require() {}
+                    require(["x/y"]);
+                    req("a/b");
+                });
+            }),
+            baseId: "a/b",
+            amdWrapper: false
+        });
+
+        expect(result.defines).toEqual({
+            "a/b": {
+                depends: ["a/b"],
+                requires: [],
+            }
+        });
+    });
+
+    it("require 被变量定义重写");
+    it("require 被后定义的函数覆盖");
+    it("require 被后定义的变量覆盖");
 });
