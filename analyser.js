@@ -204,6 +204,17 @@ HOOKS[Syntax.CallExpression] = (node, parent, thisObj) => {
     }
 };
 
+// 处理函数作用域
+// TODO 要不要处理 with let 等等？-_-!!
+// TODO 还有变量提升 -_- ...
+// TODO 还有 变量定义
+HOOKS[Syntax.ArrowFunctionExpression] =
+    HOOKS[Syntax.FunctionDeclaration] =
+    HOOKS[Syntax.FunctionExpression] =
+    (node, parent, thisObj) => {
+        return thisObj.processFunction(node, parent);
+    };
+
 class Analyser {
     constructor() {
         this.log = this.genLogger();
@@ -398,7 +409,7 @@ class Analyser {
                 } else {
                     // 否则，则将局部变量置为 undefined
                     // 以屏蔽外层同名变量
-                    this.declareValue(paramName, undefined);
+                    this.declareValue(paramName);
                 }
             });
 
@@ -515,6 +526,56 @@ class Analyser {
             log.debug("process call \"" + name + "\"", node.range);
             return callee(node, parent);
         }
+    }
+
+    processFunction(node, parent) {
+        let params = node.params;
+        switch (node.type) {
+            case Syntax.FunctionDeclaration:
+                if (node.id !== null) {
+                    this.declareValue(node.id.name);
+                }
+                this.pushScope();
+                this.declareValue("arguments");
+                break;
+            case Syntax.FunctionExpression:
+                this.pushScope();
+                if (node.id !== null) {
+                    this.declareValue(node.id.name);
+                }
+                this.pushScope();
+                this.declareValue("arguments");
+                break;
+            case Syntax.ArrowFunctionExpression:
+                this.pushScope();
+                break;
+        }
+
+        if (params && params.length) {
+            params.forEach((param) => {
+                this.declareValue(param.name);
+            });
+        }
+
+        // 开始分析函数体
+        node.body = walk(node.body, {
+            parent: parent,
+            node: node
+        }, HOOKS, this);
+
+        switch (node.type) {
+            case Syntax.FunctionDeclaration:
+                this.popScope();
+                break;
+            case Syntax.FunctionExpression:
+                this.popScope();
+                this.popScope();
+                break;
+            case Syntax.ArrowFunctionExpression:
+                this.popScope();
+                break;
+        }
+        return walk.skip();
     }
 
     analyse(config) {
