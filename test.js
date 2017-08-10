@@ -25,7 +25,7 @@ define(function () {
 });
     `,
     type: 'js',
-    modulePath: 'moduleA/b/c/d',
+    baseId: 'moduleA/b/c/d',
     amdWrapper: false
 });
 
@@ -55,7 +55,7 @@ output = jet.analyse({
 var compC = require('../e/compC');
     `,
     type: 'js',
-    modulePath: 'moduleA/b/c/d',
+    baseId: 'moduleA/b/c/d',
     amdWrapper: true
 });
 
@@ -88,7 +88,7 @@ define('moduleB/ccc', ['moduleB/eee'], function () {
 });
     `,
     type: 'js',
-    modulePath: 'moduleA/b/c/d',
+    baseId: 'moduleA/b/c/d',
     amdWrapper: false
 });
 
@@ -127,7 +127,7 @@ define(['module', 'exports', 'require', 'components/compA'], function (module, e
 });
     `,
     type: 'js',
-    modulePath: 'moduleA/b/c/d',
+    baseId: 'moduleA/b/c/d',
     amdWrapper: false
 });
 
@@ -165,7 +165,7 @@ define(function () {
 var compB = require('components/compB');
     `,
     type: 'js',
-    modulePath: 'moduleA/b/c/d',
+    baseId: 'moduleA/b/c/d',
     amdWrapper: false
 });
 
@@ -214,7 +214,7 @@ define(function(__renamed_require__) {
 });
     `,
     type: 'js',
-    modulePath: 'a/c',
+    baseId: 'a/c',
     amdWrapper: false
 });
 

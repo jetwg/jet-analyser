@@ -126,7 +126,7 @@ class Walker {
     }
 
     config (params) {
-        this.modulePath = params.modulePath;
+        this.baseId = params.baseId;
         this.hooks = params.hooks;
         this.result = {
             state: 'success',
@@ -159,7 +159,7 @@ class Walker {
 
         if (meNode.moduleId) {
             if (meNode.moduleId === '__current__') {
-                meNode.moduleId = this.modulePath;
+                meNode.moduleId = this.baseId;
             }
 
             this.current = meNode.moduleId;
@@ -198,7 +198,7 @@ class Walker {
 
                 if (nodeId.length > defNodeId.length && nodeId.substring(0, defNodeId.length) === defNodeId) {
                     // define需要避免冲突外层define模块
-                    // 
+
                     this.result.logs.push({
                         type: 'error',
                         message: '出现嵌套define语法'
@@ -207,7 +207,7 @@ class Walker {
                 }
             }
             // 保存符合规则的define模块
-            this.allDefines[meNode.moduleId === '__current__' ? this.modulePath : meNode.moduleId] = meNode;
+            this.allDefines[meNode.moduleId === '__current__' ? this.baseId : meNode.moduleId] = meNode;
 
             return true;
         }

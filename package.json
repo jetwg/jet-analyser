@@ -14,6 +14,7 @@
   "author": "chenrui09",
   "license": "ISC",
   "dependencies": {
+    "crypto": "0.0.3",
     "escodegen": "^1.8.1",
     "esprima": "^4.0.0",
     "estemplate": "^0.5.1"

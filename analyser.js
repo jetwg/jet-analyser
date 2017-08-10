@@ -2,6 +2,7 @@
 const esprima = require('esprima');
 const escodegen = require('escodegen');
 const estemplate = require('estemplate');
+const crypto = require('crypto');
 const native_hasOwn = Object.prototype.hasOwnProperty;
 
 const BUILDIN_MODULE = {
@@ -27,6 +28,8 @@ function hasOwn(obj, key) {
         native_hasOwn.call(obj, key);
 }
 
+
+
 function assert(condition, message) {
     message = message || "";
     if (condition !== true) {
@@ -40,6 +43,16 @@ function isString(str) {
 
 function isAbsoluteId(id) {
     return isString(id) && id.length > 0 && id.indexOf(".") !== 0;
+}
+
+function md5(data, len) {
+  let md5sum = crypto.createHash('md5');
+  let encoding = typeof data === 'string' ? 'utf8' : 'binary';
+  
+  md5sum.update(data, encoding);
+  len = len || 8;
+  
+  return md5sum.digest('hex').substring(0, len);
 }
 
 function walk(node, hook, ctx) {
@@ -457,6 +470,8 @@ class Analyser {
         let amdWrapper = !!config.amdWrapper;
         let baseId = config.baseId || null;
         let source = config.source;
+        let useHash = !!config.useHash;
+        let optimize = !!config.optimize;
 
         if (baseId !== null) {
             assert(isAbsoluteId(config.baseId), "Base id must be absolute.");
@@ -482,7 +497,7 @@ class Analyser {
             sourceMapWithCode: true,
             parse: esprima.parse,
             format: {
-                compact: true
+                compact: optimize
             }
         };
 
@@ -493,6 +508,17 @@ class Analyser {
         }
 
         let output = escodegen.generate(ast, codegenConf);
+        let outputSource = source ? source : baseId;
+
+        if (useHash) {
+            let hash = md5(output.code);
+
+            if (/\.js$/.test(outputSource)) {
+                outputSource = outputSource.replace(/\.js$/, `_${hash}.js`);
+            } else {
+                outputSource = outputSource + '_' + hash;
+            }
+        }
         /*
         console.log("==", this.baseId, "===========================");
         console.log(code);
@@ -510,6 +536,7 @@ class Analyser {
             output: output.code,
             defines: this.defines,
             map: output.map.toString(),
+            source: outputSource,
             logs: this.logs
         };
     }
