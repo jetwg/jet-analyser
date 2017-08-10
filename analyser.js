@@ -47,7 +47,7 @@ function isAbsoluteId(id) {
     return isString(id) && id.length > 0 && id.indexOf(".") !== 0;
 }
 
-function walk(node, hook, ctx) {
+function walk(node, parent, hook, ctx) {
     let type;
     let key;
     let value;
@@ -57,9 +57,17 @@ function walk(node, hook, ctx) {
 
     hookName = type;
     if (hasOwn(hook, hookName)) {
-        value = hook[hookName](node, ctx);
-        if (value !== undefined) {
-            return value
+        ret = hook[hookName](node, parent, ctx);
+        if (ret !== undefined) {
+            if (ret.type === WALK_SKIP) {
+                return node;
+            } else if (ret.type === WALK_REMOVE) {
+                return null;
+            } else if (ret.type === WALK_REPLACE) {
+                return ret.payload;
+            } else {
+                // TODO 不管？
+            }
         }
     }
 
@@ -69,28 +77,68 @@ function walk(node, hook, ctx) {
             hookName = type + "." + key;
 
             if (hasOwn(hook, hookName)) {
-                ret = hook[hookName](value, ctx);
+                ret = hook[hookName](value, parent, ctx);
+
                 if (ret !== undefined) {
-                    node[key] = ret;
-                    return;
+                    if (ret.type === WALK_SKIP) {
+                        node[key] = value;
+                        return;
+                    } else if (ret.type === WALK_REMOVE) {
+                        node[key] = null;
+                        return;
+                    } else if (ret.type === WALK_REPLACE) {
+                        node[key] = ret.payload;
+                        return;
+                    } else {
+                        // TODO 不管？
+                    }
                 }
             }
 
             if (Array.isArray(value)) {
                 value = value.map((item) => {
-                    return walk(item, hook, ctx);
+                    return walk(item, {
+                        parent: parent,
+                        node: node
+                    }, hook, ctx);
                 });
             } else {
-                node[key] = walk(value, hook, ctx);
+                node[key] = walk(value, {
+                    parent: parent,
+                    node: node
+                }, hook, ctx);
             }
 
         });
-    }else{
+    } else {
         // TODO Unknow type??
     }
 
     return node;
 }
+
+const WALK_SKIP = {};
+const WALK_REMOVE = {};
+const WALK_REPLACE = {};
+
+walk.skip = () => {
+    return {
+        type: WALK_SKIP
+    };
+};
+
+walk.remove = () => {
+    return {
+        type: WALK_REMOVE
+    };
+};
+
+walk.replace = (payload) => {
+    return {
+        type: WALK_REPLACE,
+        payload: payload
+    };
+};
 
 /**
  * 相对id转换成绝对id
@@ -128,25 +176,12 @@ function relative2absolute(id, baseId) {
     return res.join('/');
 }
 
-function genExpression(code, replacement) {
-    let ast = esprima.parse(code);
-    ast = walk(ast, {
-        "Identifier": function(node) {
-            let name = node.name;
-            if (hasOwn(replacement, node.name)) {
-                return replacement[node.name];
-            }
-        }
-    });
-    return ast.body[0].expression;
-}
-
 function genLiteral(value) {
     // TODO RegExp
     return {
-        "type": "Literal",
-        "value": value,
-        "raw": JSON.stringify(value)
+        type: Syntax.Literal,
+        value: value,
+        raw: JSON.stringify(value)
     };
 }
 
@@ -155,17 +190,17 @@ function genLiteralArray(elements) {
         return genLiteral(item);
     });
     return {
-        "type": "ArrayExpression",
-        "elements": elements
+        type: Syntax.ArrayExpression,
+        elements: elements
     };
 }
 
-const HOOKS = {
-    CallExpression: (node, thisObj) => {
-        let callee = node.callee;
-        if (callee.type === 'Identifier') {
-            return thisObj.processCall(callee.name, node);
-        }
+const HOOKS = {};
+
+HOOKS[Syntax.CallExpression] = (node, parent, thisObj) => {
+    let callee = node.callee;
+    if (callee.type === Syntax.Identifier) {
+        return thisObj.processCall(callee.name, node, parent);
     }
 };
 
@@ -177,6 +212,7 @@ class Analyser {
     reset() {
         this.baseId = null;
         this.defines = {};
+        this.defineStack = [];
         this.currentDefine = null;
 
         this.scopeStack = [];
@@ -233,7 +269,7 @@ class Analyser {
     }
 
     genGlobalDefine() {
-        return (node) => {
+        return (node, parent) => {
             let args = node.arguments;
             let id = null;
             let dependencies = null;
@@ -246,10 +282,14 @@ class Analyser {
 
             let log = this.log;
 
+            if (parent && parent.parent && parent.parent.node.type !== Syntax.Program) {
+                log.warning("Define may not be called.", node.range);
+            }
+
             switch (args.length) {
                 case 0:
                     log.warning("The parameter of define cannot be empty.", node.range);
-                    return;
+                    return walk.skip();
                     break;
                 case 1:
                     // define(factory)
@@ -258,7 +298,7 @@ class Analyser {
                 case 2:
                     // define(dependencies, factory)
                     // define(id, factory)
-                    if (args[0].type === "ArrayExpression") {
+                    if (args[0].type === Syntax.ArrayExpression) {
                         dependencies = args[0];
                     } else {
                         id = args[0];
@@ -276,13 +316,13 @@ class Analyser {
 
             // 校验并提取模块id
             if (id !== null) {
-                if (id.type !== "Literal" || !isString(id.value)) {
+                if (id.type !== Syntax.Literal || !isString(id.value)) {
                     log.warning("Id must be an literal string.", id.range);
-                    return;
+                    return walk.skip();
                 }
                 if (!isAbsoluteId(id.value)) {
                     log.warning("Id must be absolute.", id.range);
-                    return;
+                    return walk.skip();
                 }
                 modId = id.value;
             } else {
@@ -291,9 +331,9 @@ class Analyser {
             }
 
             // 校验factory
-            if (factory.type !== "FunctionExpression") {
+            if (factory.type !== Syntax.FunctionExpression) {
                 log.warning("Factory must be an function expression.", factory.range);
-                return;
+                return walk.skip();
             }
 
             modParams = factory.params;
@@ -301,28 +341,30 @@ class Analyser {
             // 校验并提取模块依赖关系
             if (dependencies !== null) {
                 // 依赖必须是数组表达式
-                if (dependencies.type !== "ArrayExpression") {
+                if (dependencies.type !== Syntax.ArrayExpression) {
                     log.warning("Dependencies must be an array expression.", dependencies.range);
-                    return;
+                    return walk.skip();
                 }
 
+                let hasRelativeId = false;
                 modDeps = dependencies.elements.map((item) => {
-                    if (item.type !== "Literal" ||
+                    if (item.type !== Syntax.Literal ||
                         !isString(item.value) ||
                         !isAbsoluteId(item.value)) {
                         log.warning("Dependencie id must be an absolute id.", item.range);
-                        return null;
+                        hasRelativeId = true;
                     }
                     return item.value;
-                }).filter((item) => {
-                    return item !== null;
                 });
+                if (hasRelativeId) {
+                    return walk.skip();
+                }
             } else {
                 // 没有声明依赖时，factory 的参数个数不能大于 3 个
                 if (modParams.length > 3) {
                     log.warning("When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3.",
                         factory.range);
-                    return;
+                    return walk.skip();
                 }
                 modDeps = ["require", "exports", "module"].slice(0, modParams.length);
             }
@@ -332,6 +374,7 @@ class Analyser {
                 depends: [],
                 requires: [],
             };
+            this.defineStack.push(this.currentDefine);
             this.defines[modId] = this.currentDefine = module;
 
             // 准备分析 factory 内容
@@ -360,11 +403,15 @@ class Analyser {
             });
 
             // 开始分析函数体
-            factory.body = walk(factory.body, HOOKS, this);
+            factory.body = walk(factory.body, {
+                parent: parent,
+                node: factory
+            }, HOOKS, this);
 
             // 弹出变量作用域
             this.popScope();
-            this.currentDefine = null;
+            // 弹出 define
+            this.currentDefine = this.defineStack.pop();
 
             if (id === null) {
                 id = genLiteral(modId);
@@ -393,7 +440,7 @@ class Analyser {
 
             node.arguments = [id, dependencies, factory];
 
-            return node;
+            return walk.replace(node);
         };
     }
 
@@ -402,46 +449,51 @@ class Analyser {
     }
 
     genLocalRequire(baseId) {
-        return (node) => {
+        return (node, parent) => {
             let log = this.log;
             let args = node.arguments;
             let requireId = args[0];
             log.debug("process " + escodegen.generate(node), node.range);
             if (args.length === 0) {
                 log.warning("The parameter of require cannot be empty.", node.range);
-                return;
+                return walk.skip();
             }
-            let topLevelId;
+            let topLevelId = null;
             switch (requireId.type) {
-                case "Literal":
+                case Syntax.Literal:
                     if (baseId === null) {
                         // baseId为null时，为 global require
                         topLevelId = requireId.value;
                         if (!isAbsoluteId(topLevelId)) {
                             log.warning("Relative id is not allowed in global require.", requireId.range);
-                            return;
+                            topLevelId = null;
                         }
                     } else {
                         topLevelId = relative2absolute(requireId.value, baseId);
                     }
-                    this.currentDefine.depends.push(topLevelId);
+                    if (topLevelId !== null) {
+                        this.currentDefine.depends.push(topLevelId);
+                    }
                     break;
-                case "ArrayExpression":
+                case Syntax.ArrayExpression:
                     requireId.elements.forEach((id) => {
-                        if (id.type === "Literal") {
+                        topLevelId = null;
+                        if (id.type === Syntax.Literal) {
                             if (baseId === null) {
                                 // baseId为null时，为 global require
                                 topLevelId = id.value;
                                 if (!isAbsoluteId(topLevelId)) {
                                     log.warning("Relative id is not allowed in global require.", id.range);
-                                    return;
+                                    topLevelId = null;
                                 }
                             } else {
                                 topLevelId = relative2absolute(id.value, baseId);
                             }
-                            this.currentDefine.requires.push(topLevelId);
                         } else {
                             log.warning("ID should be an literal string.", id.range);
+                        }
+                        if (topLevelId !== null) {
+                            this.currentDefine.requires.push(topLevelId);
                         }
                     });
                     break;
@@ -456,12 +508,12 @@ class Analyser {
         this.declareValue("require", this.genGlobalRequire());
     }
 
-    processCall(name, node) {
+    processCall(name, node, parent) {
         let log = this.log;
         let callee = this.getValue(name);
         if (callee !== undefined) {
             log.debug("process call \"" + name + "\"", node.range);
-            return callee(node);
+            return callee(node, parent);
         }
     }
 
@@ -489,7 +541,7 @@ class Analyser {
             ast = wrapAmd(ast);
         }
 
-        ast = walk(ast, HOOKS, this);
+        ast = walk(ast, null, HOOKS, this);
 
         let codegenConf = {
             sourceMap: true,
