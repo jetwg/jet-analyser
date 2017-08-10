@@ -2,7 +2,10 @@
 const esprima = require('esprima');
 const escodegen = require('escodegen');
 const estemplate = require('estemplate');
-const native_hasOwn = Object.prototype.hasOwnProperty;
+const estraverse = require('estraverse');
+
+const Syntax = estraverse.Syntax;
+const VisitorKeys = estraverse.VisitorKeys;
 
 const BUILDIN_MODULE = {
     require: 1,
@@ -20,6 +23,8 @@ function wrapAmd(program) {
         body: program.body
     });
 }
+
+const native_hasOwn = Object.prototype.hasOwnProperty;
 
 function hasOwn(obj, key) {
     return obj !== null && obj !== undefined &&
@@ -47,6 +52,7 @@ function walk(node, hook, ctx) {
     let key;
     let value;
     let hookName;
+    let ret;
     type = node.type;
 
     hookName = type;
@@ -57,21 +63,28 @@ function walk(node, hook, ctx) {
         }
     }
 
-    for (key in node) {
-        value = node[key];
-        hookName = type + "." + key;
-        if (hasOwn(hook, hookName)) {
-            value = hook[hookName](value, ctx);
-            if (value !== undefined) {
-                node[key] = value;
+    if (hasOwn(VisitorKeys, type)) {
+        VisitorKeys[type].forEach((key) => {
+            value = node[key];
+            hookName = type + "." + key;
+
+            if (hasOwn(hook, hookName)) {
+                ret = hook[hookName](value, ctx);
+                if (ret !== undefined) {
+                    node[key] = ret;
+                    return;
+                }
             }
-        } else if (Array.isArray(value)) {
-            value = value.map((item) => {
-                return walk(item, hook, ctx);
-            });
-        } else if (hasOwn(value, "type")) {
-            node[key] = walk(value, hook, ctx);
-        }
+
+            if (Array.isArray(value)) {
+                value = value.map((item) => {
+                    return walk(item, hook, ctx);
+                });
+            } else {
+                node[key] = walk(value, hook, ctx);
+            }
+
+        });
     }
 
     return node;
