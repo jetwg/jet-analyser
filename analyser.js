@@ -50,13 +50,13 @@ function isAbsoluteId(id) {
 }
 
 function md5(data, len) {
-  let md5sum = crypto.createHash('md5');
-  let encoding = typeof data === 'string' ? 'utf8' : 'binary';
-  
-  md5sum.update(data, encoding);
-  len = len || 8;
-  
-  return md5sum.digest('hex').substring(0, len);
+    let md5sum = crypto.createHash('md5');
+    let encoding = typeof data === 'string' ? 'utf8' : 'binary';
+
+    md5sum.update(data, encoding);
+    len = len || 8;
+
+    return md5sum.digest('hex').substring(0, len);
 }
 
 function walk(node, parent, hook, ctx) {
@@ -303,6 +303,7 @@ class Analyser {
 
             let modId = null;
             let modDeps = null;
+            let modDepsAbsolute = null;
             let modParams = null;
             let module = null;
 
@@ -372,17 +373,17 @@ class Analyser {
                     return walk.skip();
                 }
 
-                let hasRelativeId = false;
+                let hasInvaLidId = false;
                 modDeps = dependencies.elements.map((item) => {
                     if (item.type !== Syntax.Literal ||
-                        !isString(item.value) ||
-                        !isAbsoluteId(item.value)) {
-                        log.warning("Dependencie id must be an absolute id.", item.range);
-                        hasRelativeId = true;
+                        !isString(item.value)
+                    ) {
+                        log.warning("Dependencie id must be an literal string.", item.range);
+                        return null;
                     }
                     return item.value;
                 });
-                if (hasRelativeId) {
+                if (hasInvaLidId) {
                     return walk.skip();
                 }
             } else {
@@ -450,8 +451,12 @@ class Analyser {
                 dependencies = genLiteralArray(modDeps.concat(module.depends));
             } else {
                 // 如果分析出来的依赖模块未在声明的的依赖模块中则需要报错
+                // 分析前，需要先将依赖 ID 转为绝对 ID
+                modDepsAbsolute = modDeps.map((id) => {
+                    return relative2absolute(id, modId);
+                });
                 let missModules = module.depends.filter((id) => {
-                    return modDeps.indexOf(id) < 0;
+                    return modDepsAbsolute.indexOf(id) < 0;
                 });
                 if (missModules.length > 0) {
                     log.warning("The dependent modules " + missModules.join(",") + " are not declared.",
@@ -459,7 +464,7 @@ class Analyser {
                 }
 
                 // 将声明的依赖添加到模块的加载依赖中
-                module.depends = modDeps.filter((id) => {
+                module.depends = modDepsAbsolute.filter((id) => {
                     return !BUILDIN_MODULE[id];
                 });
             }

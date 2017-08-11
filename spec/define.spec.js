@@ -36,7 +36,7 @@ describe("依赖分析测试", function() {
 
         var result = jet.analyse({
             code: this.getFunctionBody(function() {
-                define(["require", "c/d", "e/f"], function(require) {
+                define(["require", "./d", "e/f"], function(require) {
                     // 已经声明依赖的，不再分析模块内部同步 require
                     // TODO 或者分析出来，判断是否在依赖中已经声明，如果未声明则报警
                     var a = require("g/h");
@@ -52,13 +52,13 @@ describe("依赖分析测试", function() {
 
         (new Function("define", result.output))((id, deps, factory) => {
             expect(id).toEqual("a/b");
-            expect(deps).toEqual(["require", "c/d", "e/f"]);
+            expect(deps).toEqual(["require", "./d", "e/f"]);
             expect(factory.length).toEqual(1);
         });
 
         expect(result.defines).toEqual({
             "a/b": {
-                depends: ["c/d", "e/f"],
+                depends: ["a/d", "e/f"],
                 requires: ["i/j", "k/l"],
             }
         });
@@ -102,7 +102,7 @@ describe("依赖分析测试", function() {
 
         var result = jet.analyse({
             code: this.getFunctionBody(function() {
-                define("a/b", ["require", "c/d", "e/f"], function(require) {
+                define("a/b", ["require", "./d", "e/f"], function(require) {
                     // 已经声明依赖的，不再分析模块内部同步 require
                     var a = require("g/h");
                     // 不管是否声明依赖，都需要分析内部的异步 require
@@ -117,14 +117,37 @@ describe("依赖分析测试", function() {
 
         (new Function("define", result.output))((id, deps, factory) => {
             expect(id).toEqual("a/b");
-            expect(deps).toEqual(["require", "c/d", "e/f"]);
+            expect(deps).toEqual(["require", "./d", "e/f"]);
             expect(factory.length).toEqual(1);
         });
 
         expect(result.defines).toEqual({
             "a/b": {
-                depends: ["c/d", "e/f"],
+                depends: ["a/d", "e/f"],
                 requires: ["i/j"],
+            }
+        });
+
+    });
+    it("define 依赖为相对路径", function() {
+        var result = jet.analyse({
+            code: this.getFunctionBody(function() {
+                define(["./c"], function() {});
+            }),
+            baseId: "a/b",
+            amdWrapper: false
+        });
+
+        (new Function("define", result.output))((id, deps, factory) => {
+            expect(id).toEqual("a/b");
+            expect(deps).toEqual(['./c']);
+            expect(factory.length).toEqual(0);
+        });
+
+        expect(result.defines).toEqual({
+            "a/b": {
+                depends: ["a/c"],
+                requires: [],
             }
         });
 
