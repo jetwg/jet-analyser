@@ -252,12 +252,18 @@ class Analyser {
     genLogger() {
         let logger = {};
         ["debug", "info", "notice", "warning", "error"].forEach((level) => {
-            logger[level] = (msg, range) => {
-                this.logs.push({
+            logger[level] = (msg, node) => {
+                let log = {
                     level: level,
-                    message: String(msg),
-                    range: range
-                });
+                    message: String(msg)
+                };
+                if (node && node.range) {
+                    log.range = node.range;
+                }
+                if (node && node.loc) {
+                    log.loc = node.loc;
+                }
+                this.logs.push(log);
             };
         });
         return logger;
@@ -310,12 +316,12 @@ class Analyser {
             let log = this.log;
 
             if (parent && parent.parent && parent.parent.node.type !== Syntax.Program) {
-                log.warning("Define may not be called.", node.range);
+                log.warning("Define may not be called.", node);
             }
 
             switch (args.length) {
                 case 0:
-                    log.warning("The parameter of define cannot be empty.", node.range);
+                    log.warning("The parameter of define cannot be empty.", node);
                     return walk.skip();
                     break;
                 case 1:
@@ -344,11 +350,11 @@ class Analyser {
             // 校验并提取模块id
             if (id !== null) {
                 if (id.type !== Syntax.Literal || !isString(id.value)) {
-                    log.warning("Id must be an literal string.", id.range);
+                    log.warning("Id must be an literal string.", id);
                     return walk.skip();
                 }
                 if (!isAbsoluteId(id.value)) {
-                    log.warning("Id must be absolute.", id.range);
+                    log.warning("Id must be absolute.", id);
                     return walk.skip();
                 }
                 modId = id.value;
@@ -359,7 +365,7 @@ class Analyser {
 
             // 校验factory
             if (factory.type !== Syntax.FunctionExpression) {
-                log.warning("Factory must be an function expression.", factory.range);
+                log.warning("Factory must be an function expression.", factory);
                 return walk.skip();
             }
 
@@ -369,7 +375,7 @@ class Analyser {
             if (dependencies !== null) {
                 // 依赖必须是数组表达式
                 if (dependencies.type !== Syntax.ArrayExpression) {
-                    log.warning("Dependencies must be an array expression.", dependencies.range);
+                    log.warning("Dependencies must be an array expression.", dependencies);
                     return walk.skip();
                 }
 
@@ -378,7 +384,7 @@ class Analyser {
                     if (item.type !== Syntax.Literal ||
                         !isString(item.value)
                     ) {
-                        log.warning("Dependencie id must be an literal string.", item.range);
+                        log.warning("Dependencie id must be an literal string.", item);
                         return null;
                     }
                     return item.value;
@@ -390,7 +396,7 @@ class Analyser {
                 // 没有声明依赖时，factory 的参数个数不能大于 3 个
                 if (modParams.length > 3) {
                     log.warning("When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3.",
-                        factory.range);
+                        factory);
                     return walk.skip();
                 }
                 modDeps = ["require", "exports", "module"].slice(0, modParams.length);
@@ -460,7 +466,7 @@ class Analyser {
                 });
                 if (missModules.length > 0) {
                     log.warning("The dependent modules " + missModules.join(",") + " are not declared.",
-                        dependencies.range);
+                        dependencies);
                 }
 
                 // 将声明的依赖添加到模块的加载依赖中
@@ -484,9 +490,9 @@ class Analyser {
             let log = this.log;
             let args = node.arguments;
             let requireId = args[0];
-            log.debug("process " + escodegen.generate(node), node.range);
+            log.debug("process " + escodegen.generate(node), node);
             if (args.length === 0) {
-                log.warning("The parameter of require cannot be empty.", node.range);
+                log.warning("The parameter of require cannot be empty.", node);
                 return walk.skip();
             }
             let topLevelId = null;
@@ -496,7 +502,7 @@ class Analyser {
                         // baseId为null时，为 global require
                         topLevelId = requireId.value;
                         if (!isAbsoluteId(topLevelId)) {
-                            log.warning("Relative id is not allowed in global require.", requireId.range);
+                            log.warning("Relative id is not allowed in global require.", requireId);
                             topLevelId = null;
                         }
                     } else {
@@ -514,14 +520,14 @@ class Analyser {
                                 // baseId为null时，为 global require
                                 topLevelId = id.value;
                                 if (!isAbsoluteId(topLevelId)) {
-                                    log.warning("Relative id is not allowed in global require.", id.range);
+                                    log.warning("Relative id is not allowed in global require.", id);
                                     topLevelId = null;
                                 }
                             } else {
                                 topLevelId = relative2absolute(id.value, baseId);
                             }
                         } else {
-                            log.warning("ID should be an literal string.", id.range);
+                            log.warning("ID should be an literal string.", id);
                         }
                         if (topLevelId !== null) {
                             this.currentDefine.requires.push(topLevelId);
@@ -529,7 +535,7 @@ class Analyser {
                     });
                     break;
                 default:
-                    log.warning("ID should be an literal string or array expression.", requireId.range);
+                    log.warning("ID should be an literal string or array expression.", requireId);
             }
         };
     }
@@ -543,7 +549,7 @@ class Analyser {
         let log = this.log;
         let callee = this.getValue(name);
         if (callee !== undefined) {
-            log.debug("process call \"" + name + "\"", node.range);
+            log.debug("process call \"" + name + "\"", node);
             return callee(node, parent);
         }
     }
