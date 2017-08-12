@@ -210,6 +210,13 @@ function genLiteralArray(elements) {
     };
 }
 
+const LOG_LEVELS = ["debug", "info", "notice", "warning", "error"];
+
+const LOG_LEVEL = LOG_LEVELS.reduce((map, name, index) => {
+    map[name.toUpperCase()] = index;
+    return map;
+}, {});
+
 const HOOKS = {};
 
 HOOKS[Syntax.CallExpression] = (node, parent, thisObj) => {
@@ -230,6 +237,7 @@ HOOKS[Syntax.ArrowFunctionExpression] =
         return thisObj.processFunction(node, parent);
     };
 
+
 class Analyser {
     constructor() {
         this.log = this.genLogger();
@@ -237,6 +245,9 @@ class Analyser {
 
     reset() {
         this.baseId = null;
+        this.code = null;
+        this.codeLines = null;
+        this.fileName = null;
         this.defines = {};
         this.defineStack = [];
         this.currentDefine = null;
@@ -251,8 +262,8 @@ class Analyser {
 
     genLogger() {
         let logger = {};
-        ["debug", "info", "notice", "warning", "error"].forEach((level) => {
-            logger[level] = (msg, node) => {
+        LOG_LEVELS.forEach((name, level) => {
+            logger[name] = (msg, node) => {
                 let log = {
                     level: level,
                     message: String(msg)
@@ -261,12 +272,90 @@ class Analyser {
                     log.range = node.range;
                 }
                 if (node && node.loc) {
-                    log.loc = node.loc;
+                    log.loc = node.loc.start;
                 }
                 this.logs.push(log);
             };
         });
         return logger;
+    }
+
+    printLog(level) {
+        if (level === undefined) {
+            level = LOG_LEVEL.INFO;
+        }
+        this.logs.forEach((log) => {
+            if (log.level >= level) {
+                console.log(this.doPrintLog(log));
+            }
+        });
+    }
+
+    doPrintLog(log) {
+        let output = [];
+        let fileName;
+        let lineNumber;
+        let message;
+
+        if (this.fileName) {
+            fileName = this.fileName;
+        } else if (this.baseId) {
+            fileName = "Module " + this.baseId;
+        } else {
+            fileName = "Unknow source";
+        }
+
+        if (log.loc) {
+            lineNumber = log.loc.line;
+        } else {
+            lineNumber = null;
+        }
+
+        output.push(fileName, ":", lineNumber ? lineNumber + ": " : " ", log.message);
+
+        if (log.loc) {
+            output.push("\n", this.getLogLine(log.loc));
+        }
+        return output.join("");
+    }
+
+    getLogLine(loc) {
+        const MAX_LINE = 80;
+        const MIN_LINE = 10;
+        let ret = [];
+        let column = loc.column;
+        let line = this.getSourceLine(loc.line);
+        let start = 0;
+        let end = MAX_LINE;
+        let arrow = column;
+        //line.length;
+        if (column > MAX_LINE) {
+            start = column - MIN_LINE;
+            end = start + MAX_LINE;
+            arrow = start + MIN_LINE;
+        }
+        if (start > 0) {
+            ret.push("...");
+            arrow += 3;
+        }
+        ret.push(line.substring(start, end));
+        if (end < line.length) {
+            ret.push("...");
+        }
+        ret.push("\n");
+        while (arrow--) {
+            ret.push(" ");
+        }
+        ret.push("^")
+        return ret.join("");
+    }
+
+    getSourceLine(line) {
+        if (this.codeLines === null) {
+            this.codeLines = this.code.split("\n");
+        }
+        line = line | 0;
+        return this.codeLines[Math.max(line - 1, 0)];
     }
 
     pushScope() {
@@ -315,6 +404,7 @@ class Analyser {
 
             let log = this.log;
 
+            log.debug("process define", node);
             if (parent && parent.parent && parent.parent.node.type !== Syntax.Program) {
                 log.warning("Define may not be called.", node);
             }
@@ -490,7 +580,7 @@ class Analyser {
             let log = this.log;
             let args = node.arguments;
             let requireId = args[0];
-            log.debug("process " + escodegen.generate(node), node);
+            log.debug("process require", node);
             if (args.length === 0) {
                 log.warning("The parameter of require cannot be empty.", node);
                 return walk.skip();
@@ -549,7 +639,6 @@ class Analyser {
         let log = this.log;
         let callee = this.getValue(name);
         if (callee !== undefined) {
-            log.debug("process call \"" + name + "\"", node);
             return callee(node, parent);
         }
     }
@@ -618,6 +707,8 @@ class Analyser {
             assert(isAbsoluteId(config.baseId), "Base id must be absolute.");
         }
         this.baseId = baseId;
+        this.code = code;
+        this.fileName = source;
 
         let ast = esprima.parse(code, {
             // attachComment: true,
@@ -672,6 +763,7 @@ class Analyser {
         console.log(this.logs);
         console.log("=============================================");
         //*/
+        //this.printLog();
         return {
             // state:"success" | "fail",
             output: output.code,
@@ -683,4 +775,5 @@ class Analyser {
     }
 }
 
-module.exports = new Analyser();
+exports = module.exports = new Analyser();
+exports.LOG_LEVEL = LOG_LEVEL;
