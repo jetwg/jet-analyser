@@ -4,6 +4,7 @@ const escodegen = require('escodegen');
 const estemplate = require('estemplate');
 const crypto = require('crypto');
 const estraverse = require('estraverse');
+const colors = require('colors/safe');
 const Syntax = estraverse.Syntax;
 const VisitorKeys = estraverse.VisitorKeys;
 
@@ -217,6 +218,14 @@ const LOG_LEVEL = LOG_LEVELS.reduce((map, name, index) => {
     return map;
 }, {});
 
+colors.setTheme({
+    "debug": "blue",
+    "info": "green",
+    "notice": "cyan",
+    "warning": "yellow",
+    "error": "red"
+});
+
 const HOOKS = {};
 
 HOOKS[Syntax.CallExpression] = (node, parent, thisObj) => {
@@ -311,7 +320,27 @@ class Analyser {
             lineNumber = null;
         }
 
-        output.push(fileName, ":", lineNumber ? lineNumber + ": " : " ", log.message);
+        switch (log.level) {
+            case LOG_LEVEL.DEBUG:
+                message = colors.debug(log.message);
+                break;
+            case LOG_LEVEL.INFO:
+                message = colors.info(log.message);
+                break;
+            case LOG_LEVEL.NOTICE:
+                message = colors.notice(log.message);
+                break;
+            case LOG_LEVEL.WARNING:
+                message = colors.warning(log.message);
+                break;
+            case LOG_LEVEL.ERROR:
+                message = colors.error(log.message);
+                break;
+            default:
+                message = log.message;
+        }
+
+        output.push(fileName, ":", lineNumber ? lineNumber + ": " : " ", message);
 
         if (log.loc) {
             output.push("\n", this.getLogLine(log.loc));
@@ -335,18 +364,18 @@ class Analyser {
             arrow = start + MIN_LINE;
         }
         if (start > 0) {
-            ret.push("...");
+            ret.push(colors.green("..."));
             arrow += 3;
         }
         ret.push(line.substring(start, end));
         if (end < line.length) {
-            ret.push("...");
+            ret.push(colors.green("..."));
         }
         ret.push("\n");
         while (arrow--) {
             ret.push(" ");
         }
-        ret.push("^")
+        ret.push(colors.green("^"));
         return ret.join("");
     }
 
@@ -763,7 +792,7 @@ class Analyser {
         console.log(this.logs);
         console.log("=============================================");
         //*/
-        //this.printLog();
+        // this.printLog(LOG_LEVEL.DEBUG);
         return {
             // state:"success" | "fail",
             output: output.code,
