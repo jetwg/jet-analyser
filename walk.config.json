@@ -1,7 +1,6 @@
 {
-    "src": "./spec",
+    "src": "/Users/zhangyuanwei/workspace/baidu/ps-aladdin/zhaopin-wise-atom",
     "dist": "./dist",
-    "baseId": "a/b/c",
-    "amdWrapper": true
+    "baseId": "a/b/c"
 }
 

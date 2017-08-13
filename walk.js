@@ -201,6 +201,16 @@ function doWalk(options, workers) {
         }
     });
 
+    cluster.on('exit', (worker, code, signal) => {
+        if (code !== 0) {
+            console.error('worker %d died (%s). restarting...',
+                worker.process.pid, signal || code);
+            let index = workers.indexOf(worker);
+            worker = cluster.fork();
+            workers.splice(index, 1, worker);
+        }
+    });
+
     function onFifoEnd() {
         workers.forEach((worker) => {
             worker.send({
@@ -268,6 +278,7 @@ function workerMain() {
         let inputFile = config.inputFile;
         let outputFile = config.outputFile;
 
+        process.stderr.write("analysing \"" + inputFile + "\"...\n");
         let code = fs.readFileSync(inputFile, "utf8");
         config.code = code;
 
@@ -289,8 +300,8 @@ function workerMain() {
                 outputFile: outputFile,
                 defines: result.defines,
                 depends: result.depends,
-                requires: result.requires,
-                logs: result.logs
+                requires: result.requires
+                    // logs: result.logs
             }
         });
     };
@@ -318,9 +329,7 @@ function main() {
         // Fork workers.
         let workers = [];
         for (let i = 0; i < numCPUs; i++) {
-            workers.push(cluster.fork({
-                WORKER_ID: i
-            }));
+            workers.push(cluster.fork());
         }
         masterMain(workers);
     } else {
