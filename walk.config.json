@@ -1,0 +1,7 @@
+{
+    "src": "./spec",
+    "dist": "./dist",
+    "baseId": "a/b/c",
+    "amdWrapper": true
+}
+

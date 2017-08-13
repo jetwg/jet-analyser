@@ -248,6 +248,10 @@ HOOKS[Syntax.ArrowFunctionExpression] =
 
 
 class Analyser {
+    static get LOG_LEVEL() {
+        return LOG_LEVEL;
+    }
+
     constructor() {
         this.log = this.genLogger();
     }
@@ -258,8 +262,13 @@ class Analyser {
         this.codeLines = null;
         this.fileName = null;
         this.defines = {};
+        this.depends = [];
+        this.requires = [];
         this.defineStack = [];
-        this.currentDefine = null;
+        this.currentDefine = {
+            depends: this.depends,
+            requires: this.requires
+        };
 
         this.scopeStack = [];
         this.currentScope = {};
@@ -289,22 +298,24 @@ class Analyser {
         return logger;
     }
 
-    printLog(level) {
+    printLog(level, stream) {
         if (level === undefined) {
             level = LOG_LEVEL.INFO;
         }
         this.logs.forEach((log) => {
             if (log.level >= level) {
-                console.log(this.doPrintLog(log));
+                this.doPrintLog(log, stream);
             }
         });
     }
 
-    doPrintLog(log) {
+    doPrintLog(log, stream) {
         let output = [];
         let fileName;
         let lineNumber;
         let message;
+
+        stream = stream || process.stderr;
 
         if (this.fileName) {
             fileName = this.fileName;
@@ -340,23 +351,22 @@ class Analyser {
                 message = log.message;
         }
 
-        output.push(fileName, ":", lineNumber ? lineNumber + ": " : " ", message);
+        stream.write(fileName + ":" + (lineNumber ? lineNumber + ": " : " ") + message + "\n");
 
         if (log.loc) {
-            output.push("\n", this.getLogLine(log.loc));
+            this.showLocation(log.loc, stream);
         }
-        return output.join("");
     }
 
-    getLogLine(loc) {
+    showLocation(loc, stream) {
         const MAX_LINE = 80;
         const MIN_LINE = 10;
-        let ret = [];
         let column = loc.column;
         let line = this.getSourceLine(loc.line);
         let start = 0;
         let end = MAX_LINE;
         let arrow = column;
+        let output = [];
         //line.length;
         if (column > MAX_LINE) {
             start = column - MIN_LINE;
@@ -364,19 +374,21 @@ class Analyser {
             arrow = start + MIN_LINE;
         }
         if (start > 0) {
-            ret.push(colors.green("..."));
+            output.push(colors.green("..."));
             arrow += 3;
         }
-        ret.push(line.substring(start, end));
+        output.push(line.substring(start, end));
         if (end < line.length) {
-            ret.push(colors.green("..."));
+            output.push(colors.green("..."));
         }
-        ret.push("\n");
+        output.push("\n");
         while (arrow--) {
-            ret.push(" ");
+            output.push(" ");
         }
-        ret.push(colors.green("^"));
-        return ret.join("");
+        output.push(colors.green("^"), "\n");
+
+        stream.write(output.join(""));
+
     }
 
     getSourceLine(line) {
@@ -614,6 +626,12 @@ class Analyser {
                 log.warning("The parameter of require cannot be empty.", node);
                 return walk.skip();
             }
+
+            if (!this.currentDefine) {
+                log.error("Require must in a define factory..", node);
+                return walk.skip();
+            }
+
             let topLevelId = null;
             switch (requireId.type) {
                 case Syntax.Literal:
@@ -733,7 +751,7 @@ class Analyser {
         let optimize = !!config.optimize;
 
         if (baseId !== null) {
-            assert(isAbsoluteId(config.baseId), "Base id must be absolute.");
+            assert(isAbsoluteId(baseId), "Base id must be absolute.");
         }
         this.baseId = baseId;
         this.code = code;
@@ -797,6 +815,8 @@ class Analyser {
             // state:"success" | "fail",
             output: output.code,
             defines: this.defines,
+            depends: this.depends,
+            requires: this.requires,
             map: output.map.toString(),
             source: outputSource,
             logs: this.logs
@@ -804,5 +824,6 @@ class Analyser {
     }
 }
 
-exports = module.exports = new Analyser();
-exports.LOG_LEVEL = LOG_LEVEL;
+
+//exports = module.exports = new Analyser();
+module.exports = Analyser;

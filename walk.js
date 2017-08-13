@@ -1,372 +1,331 @@
 "use strict";
 
+const fs = require("fs");
 const path = require('path');
-const escodegen = require('escodegen');
-const generator = require('./generator');
+const cluster = require('cluster');
+const numCPUs = require('os').cpus().length;
+const walk = require("walk");
+const mkdirp = require('mkdirp');
+const Analyser = require('./Analyser');
+const nextLoop = require('./nextLoop');
 
-let AST_PROPS = {
-    "Identifier": [],
-    "Literal": [],
-    "Program": ["body"],
-    "ExpressionStatement": ["expression"],
-    "BlockStatement": ["body"],
-    "EmptyStatement": [],
-    "DebuggerStatement": [],
-    "WithStatement": ["object", "body"],
-    "ReturnStatement": ["argument"],
-    "LabeledStatement": ["label", "body"],
-    "BreakStatement": ["label"],
-    "ContinueStatement": ["label"],
-    "IfStatement": ["test", "consequent", "alternate"],
-    "SwitchStatement": ["discriminant", "cases"],
-    "SwitchCase": ["test", "consequent"],
-    "ThrowStatement": ["argument"],
-    "TryStatement": ["block", "handler", "finalizer"],
-    "CatchClause": ["param", "body"],
-    "WhileStatement": ["test", "body"],
-    "DoWhileStatement": ["body", "test"],
-    "ForStatement": ["init", "test", "update", "body"],
-    "ForInStatement": ["left", "right", "body"],
-    "FunctionDeclaration": ["id", "params", "body"],
-    "VariableDeclaration": ["declarations"],
-    "VariableDeclarator": ["id", "init"],
-    "ThisExpression": [],
-    "ArrayExpression": ["elements"],
-    "ObjectExpression": ["properties"],
-    "Property": ["key", "value"],
-    "FunctionExpression": ["id", "params", "body"],
-    "UnaryExpression": ["argument"],
-    "UpdateExpression": ["argument"],
-    "BinaryExpression": ["left", "right"],
-    "AssignmentExpression": ["left", "right"],
-    "LogicalExpression": ["left", "right"],
-    "MemberExpression": ["object", "property"],
-    "ConditionalExpression": ["test", "consequent", "alternate"],
-    "CallExpression": ["callee", "arguments"],
-    "NewExpression": ["callee", "arguments"],
-    "SequenceExpression": ["expressions"],
-    // 以下为 ES6 新增的
-    "ArrowFunctionExpression": ["id", "params", "body"],
-    "TemplateLiteral": ['quasis', 'expressions'],
-    'TemplateElement':[],
-};
-
-/**
- * 相对id转换成绝对id
- *
- * @inner
- * @param {string} id 要转换的相对id
- * @param {string} baseId 当前所在环境id
- * @return {string} 绝对id
- */
-function relative2absolute (id, baseId) {
-    if (id.indexOf('.') !== 0) {
-        return id;
+function endWith(str, end) {
+    let endLen = end.length;
+    let strLen = str.length;
+    let i;
+    if (strLen < endLen) {
+        return false;
     }
 
-    let segs = baseId.split('/').slice(0, -1).concat(id.split('/'));
-    let res = [];
-    for (let i = 0; i < segs.length; i++) {
-        let seg = segs[i];
-
-        switch (seg) {
-            case '.':
-                break;
-            case '..':
-                if (res.length && res[res.length - 1] !== '..') {
-                    res.pop();
-                }
-                else { // allow above root
-                    res.push(seg);
-                }
-                break;
-            default:
-                seg && res.push(seg);
-        }
-    }
-
-    return res.join('/');
-}
-
-/**
- * 
- * ModuleExpressionNode 模块表达式节点（define，require）
- * 
- */
-
-class ModuleExpressionNode {
-    
-    constructor (node, nodeId, config) {
-        this.node = node;
-        this.nodeId = nodeId;
-        this.type = 'require';
-
-        if (config.define) {
-            this.type = 'define';
-            this.moduleId = config.define;  // 模块id
-        }
-
-        this.nostate = config.nostate;      // 未声明define模块标识
-        this.async = config.async;          // 异步require模块标识
-        this.depends = config.depends;      // 同步依赖
-        this.requires = config.requires;    // 异步依赖
-    }
-}
-
-/**
- * 
- * Walker 基于ast node的解析执行器
- * 
- */
-
-class Walker {
-
-    constructor () {
-
-    }
-
-    config (params) {
-        this.baseId = params.baseId;
-        this.hooks = params.hooks;
-        this.result = {
-            state: 'success',
-            output: '',
-            defines: {},
-            logs: []
-        };
-        this.allDefines = {};
-
-        return this;
-    }
-
-    getAbsolutePath (current, filePath) {
-
-        return relative2absolute(filePath, current);
-    }
-
-    arrayPush(array, element) {
-        if (array.indexOf(element) === -1) {
-            array.push(element);
-        }
-    }
-
-    mergeDepends (meNode) {
-        let self = this;
-        let resDefines = this.result.defines;
-        let allDefines = this.allDefines;
-        let currResult;
-        let currDefine;
-
-        if (meNode.moduleId) {
-            if (meNode.moduleId === '__current__') {
-                meNode.moduleId = this.baseId;
-            }
-
-            this.current = meNode.moduleId;
-            resDefines[this.current] = {
-                depends: [],
-                requires: []
-            }
-        }
-
-        currResult = resDefines[this.current];
-        currDefine = allDefines[this.current];
-
-        meNode.depends.length && meNode.depends.forEach(dep => {
-            dep = self.getAbsolutePath(self.current, dep);
-            self.arrayPush(currDefine.depends, dep);
-            self.arrayPush(currResult.depends, dep);
-        });
-
-        meNode.requires.length && meNode.requires.forEach(req => {
-            req = self.getAbsolutePath(self.current, req);
-            self.arrayPush(currDefine.requires, req);
-            self.arrayPush(currResult.requires, req);
-        });
-    }
-
-    checkDefines (meNode) {
-        let nodeId = meNode.nodeId;
-        let defNode;
-        let defNodeId;
-
-        // 处理define函数
-        if (meNode.type === 'define') {
-            for (let id in this.allDefines) {
-                defNode = this.allDefines[id];
-                defNodeId = defNode.nodeId;
-
-                if (nodeId.length > defNodeId.length && nodeId.substring(0, defNodeId.length) === defNodeId) {
-                    // define需要避免冲突外层define模块
-
-                    this.result.logs.push({
-                        type: 'error',
-                        message: '出现嵌套define语法'
-                    });
-                    return false;
-                }
-            }
-            // 保存符合规则的define模块
-            this.allDefines[meNode.moduleId === '__current__' ? this.baseId : meNode.moduleId] = meNode;
-
-            return true;
-        }
-        // 处理require及其他函数
-        else if (meNode.type === 'require') {
-
-            for (let id in this.allDefines) {
-                defNode = this.allDefines[id];
-                defNodeId = defNode.nodeId;
-
-                if (nodeId.length > defNodeId.length && nodeId.substring(0, defNodeId.length) === defNodeId) {
-                    // require依赖外层define模块
-                    // 如果出现同步require，外层define模块有声明依赖，且未声明当前模板，则报错
-                    if (!meNode.async && !defNode.nostate && defNode.depends.indexOf(meNode.depends[0]) === -1) {
-                        this.result.logs.push({
-                            type: 'error',
-                            message: '出现未声明模块的require语法'
-                        });
-                        return false;
-                    }
-
-                    return true;
-                }
-            }
-            this.result.logs.push({
-                type: 'error',
-                message: '出现无模块的require语法'
-            });
+    for (i = 1; i <= endLen; i++) {
+        if (str.charCodeAt(strLen - i) !== end.charCodeAt(endLen - i)) {
             return false;
         }
     }
+    return true;
+}
 
-    exportDefineNode (meNode) {
-        // 判断是否有模块定义
-        if (meNode.moduleId) {
-            let define = this.allDefines[meNode.moduleId];
-            let args = meNode.node.arguments;
-            let arg0 = args[0];
-            let arg1 = args[1];
-            let arg2 = args[2];
+function normalizeRelativePath(path) {
+    let segs = path.split("/");
 
-            let argModuleId = generator.genLiteral(meNode.moduleId);
-            let argDepends = arg0.type === 'ArrayExpression' ? arg0 : (arg1 && arg1.type === 'ArrayExpression' ? arg1 : null);
-            let argCallback = arg0.type === 'FunctionExpression' ? arg0 : (arg1 && arg1.type === 'FunctionExpression' ? arg1 : arg2);
+    segs = segs.filter((seg) => {
+        return seg.length > 0 && seg !== ".";
+    });
 
-            // 没有声明依赖
-            if (!argDepends) {
-                let array = ['require', 'exports', 'module'];
+    return segs.join("/");
+}
 
-                argDepends = generator.genLiteralArray(array);
+function path2id(path) {
+    let segs = path.split("/");
+    let lastSeg;
+    if (segs.length) {
+        lastSeg = segs.pop();
+        if (endWith(lastSeg, ".js")) {
+            lastSeg = lastSeg.substring(0, lastSeg.length - 3);
+        }
+        segs.push(lastSeg);
+    }
+    return segs.join("/");
+}
 
-                if (!argCallback.params.length) {
-                    // argCallback.params.push(generator.genIdentifier('require'));
-                }
+function defaultFilter(root, fileStats) {
+    let fileName = fileStats.name;
+    return fileName.substring(fileName.length - 3) === ".js";
+}
 
-                // 添加内部模块依赖
-                if (define) {
-                    define.depends.forEach(dep => {
-                        let hasDep = false;
+function genFifo() {
+    const BUFFER_SIZE = numCPUs;
+    let buffer = [];
+    let waitList = [];
 
-                        argDepends.elements.forEach(ele => {
-                            if (ele.value === dep) {
-                                hasDep = true;
-                            }
-                        })
+    let getNext = null;
+    let onFinish = null;
+    let endded = false;
+    let finished = false;
 
-                        if (!hasDep) {
-                            argDepends.elements.push(generator.genLiteral(dep));
-                        }
-                    });
-                }
-            }
-
-            meNode.node.arguments = [
-                argModuleId,
-                argDepends,
-                argCallback
-            ];
+    function produce() {
+        if (!endded) {
+            nextLoop(getNext);
         }
     }
 
-    makeDepends (node, nodeId) {
-        let hooks = this.hooks;
-        let type = node.type;
-        let result;
-        let meNode;
+    function consume() {
+        let bufLen = buffer.length;
+        let waitLen = waitList.length;
+        let count = Math.min(bufLen, waitLen);
+        let index;
+        // console.log("data:", bufLen, " task:", waitLen);
+        for (index = 0; index < count; index++) {
+            nextLoop(waitList.pop(), [buffer.pop()]);
+        }
 
-        if (hooks && hooks.hasOwnProperty(type)) {
-            result = hooks[type](node);
+        bufLen = bufLen - count;
 
-            if (result) {
-                if (result.error) {
-                    this.result.logs.push({
-                        type: 'error',
-                        message: result.error
-                    });
-                }
-
-                meNode = new ModuleExpressionNode(node, nodeId, result);
-                // 分析语法外层define模块
-                if (!this.checkDefines(meNode)) {
-                    return false;
-                }
-                // 合入依赖分析的结果
-                this.mergeDepends(meNode);
+        if (endded) {
+            if (bufLen === 0) {
+                finish();
             }
-        }
-
-        return true;
-    }
-
-    walk (node, nodeId) {
-        let self = this;
-        let type;
-        let success;
-        let isRoot = !nodeId;
-        
-        if (!node) return null;
-        if (!nodeId) {
-            nodeId = '0';
-        }
-
-        if (isRoot) {
-            // this.result.input = escodegen.generate(node);
-        }
-
-        type = node.type;
-        // 处理当前节点，获取执行结果
-        success = this.makeDepends(node, nodeId);
-        
-        // 符合规则则遍历子节点
-        if (success && AST_PROPS.hasOwnProperty(type)) {
-            let keys = AST_PROPS[type];
-
-            keys.forEach((key, index) => {
-                if (Array.isArray(node[key])) {
-                    node[key].forEach(function(childNode, childIndex) {
-                        self.walk(childNode, nodeId + '_' + index + '_' + childIndex);
-                    });
-                } else {
-                    this.walk(node[key], nodeId + '_' + index);
-                }
-            });
         } else {
-            // throw new Error("Unknow type \"" + type + "\"");
-        }
-
-        if (isRoot) {
-            // 匿名模块节点导出
-            for (let i in this.allDefines) {
-                this.exportDefineNode(this.allDefines[i]);
+            if (bufLen < BUFFER_SIZE) {
+                produce();
             }
-            
-            this.result.output = escodegen.generate(node);
+        }
+    }
+
+    function finish() {
+        if (!finished) {
+            if (!buffer.length) {
+                finished = true;
+                nextLoop(onFinish);
+            }
+        }
+    }
+
+    function doPut(item, next) {
+        buffer.unshift(item);
+        getNext = next;
+        consume();
+    }
+
+    function doGet(callback) {
+        waitList.unshift(callback);
+        consume();
+    }
+
+    function end(callback) {
+        if (!endded) {
+            endded = true;
+            onFinish = callback;
+            nextLoop(finish);
+        }
+    }
+
+    return {
+        put: (item, next) => {
+            nextLoop(doPut, [item, next]);
+        },
+        get: (callback) => {
+            nextLoop(doGet, [callback]);
+        },
+        end: end
+    };
+}
+
+function doWalk(options, workers) {
+    let srcDir = options.src;
+    let distDir = options.dist;
+    let baseId = options.baseId || "";
+
+    let walker = walk.walk(srcDir, options.walkOption || {});
+    let filter = options.filter || defaultFilter;
+
+    let fifo = genFifo();
+
+    let srcDirLen = srcDir.length;
+
+    walker.on("file", (root, fileStats, next) => {
+        let fileName;
+        let relativePath;
+        let sourceFile;
+        let distFile;
+        let id;
+        if (filter(root, fileStats) !== true) {
+            next();
+            return;
         }
 
-        return this.result;
+        fileName = root + "/" + fileStats.name;
+
+        if (fileName.indexOf(srcDir) !== 0) {
+            // TODO 报错
+            next();
+            return;
+        }
+
+        relativePath = normalizeRelativePath(fileName.substring(srcDirLen));
+        sourceFile = srcDir + "/" + relativePath;
+        distFile = distDir + "/" + relativePath;
+        id = path2id(normalizeRelativePath(baseId + "/" + relativePath));
+
+        fifo.put({
+            inputFile: sourceFile,
+            outputFile: distFile,
+            baseId: id,
+            source: fileName,
+            amdWrapper: options.amdWrapper
+        }, next);
+    });
+
+    walker.on('end', () => {
+        fifo.end(onFifoEnd);
+    });
+
+    let config = [];
+    cluster.on("message", (worker, msg) => {
+        switch (msg.type) {
+            case "idle":
+                fifo.get((conf) => {
+                    worker.send({
+                        type: "analyse",
+                        config: conf
+                    });
+                });
+                break;
+            case "result":
+                config.push(msg.config);
+                break;
+            case "end":
+                onWorkerEnd(worker);
+                break;
+            default:
+        }
+    });
+
+    function onFifoEnd() {
+        workers.forEach((worker) => {
+            worker.send({
+                type: "end"
+            });
+        });
+    }
+
+    let workerCount = workers.length;
+    let enddedWorkers = 0;
+    let onFinish = null;
+
+    function onWorkerEnd(worker) {
+        worker.exitedAfterDisconnect = true;
+        worker.disconnect();
+        enddedWorkers++;
+        if (enddedWorkers >= workerCount) {
+            onFinish && onFinish(config);
+        }
+    }
+
+    return new Promise((resolve, reject) => {
+        onFinish = resolve;
+    });
+}
+
+function getOptionFromStdin() {
+    process.stderr.write("reading config form stdin...\n");
+    return new Promise((resolve, reject) => {
+        let input = [];
+
+        process.stdin.on("data", (trunk) => {
+            input.push(trunk);
+        });
+
+        process.stdin.on('end', () => {
+            // TODO 错误判断
+            let buf = Buffer.concat(input);
+            let str = buf.toString('utf8');
+            let json = JSON.parse(str);
+            resolve(json);
+        });
+    });
+}
+
+function masterMain(workers) {
+    getOptionFromStdin()
+        .then((option) => {
+            return doWalk(option, workers);
+        })
+        .then((config) => {
+            process.stdout.write(JSON.stringify(config));
+        });
+}
+
+function workerMain() {
+    let analyser = new Analyser();
+    let sendIdleMessage = () => {
+        process.send({
+            type: "idle"
+        });
+    };
+
+    let analyse = (config) => {
+        let inputFile = config.inputFile;
+        let outputFile = config.outputFile;
+
+        let code = fs.readFileSync(inputFile, "utf8");
+        config.code = code;
+
+        // let code = config.code || "";
+        // let amdWrapper = !!config.amdWrapper;
+        // let baseId = config.baseId || null;
+        // let source = config.source;
+        // let useHash = !!config.useHash;
+        // let optimize = !!config.optimize;
+
+        let result = analyser.analyse(config);
+        analyser.printLog();
+        mkdirp.sync(path.dirname(outputFile));
+        fs.writeFileSync(outputFile, result.output);
+        process.send({
+            type: "result",
+            config: {
+                inputFile: inputFile,
+                outputFile: outputFile,
+                defines: result.defines,
+                depends: result.depends,
+                requires: result.requires,
+                logs: result.logs
+            }
+        });
+    };
+
+    process.on("message", (msg) => {
+        switch (msg.type) {
+            case "analyse":
+                analyse(msg.config);
+                sendIdleMessage();
+                break;
+            case "end":
+                process.send({
+                    type: "end"
+                });
+                break;
+            default:
+        }
+    });
+
+    sendIdleMessage();
+}
+
+function main() {
+    if (cluster.isMaster) {
+        // Fork workers.
+        let workers = [];
+        for (let i = 0; i < numCPUs; i++) {
+            workers.push(cluster.fork({
+                WORKER_ID: i
+            }));
+        }
+        masterMain(workers);
+    } else {
+        workerMain();
     }
 }
 
-
-module.exports = new Walker();
+main();
