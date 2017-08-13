@@ -5,8 +5,16 @@ const estemplate = require('estemplate');
 const crypto = require('crypto');
 const estraverse = require('estraverse');
 const colors = require('colors/safe');
+const i18n = require("i18n");
+const __ = i18n.__;
 const Syntax = estraverse.Syntax;
 const VisitorKeys = estraverse.VisitorKeys;
+
+i18n.configure({
+    locales: ['zh-CN'],
+    directory: __dirname + '/locales',
+    defaultLocale: "zh-CN"
+});
 
 const BUILDIN_MODULE = {
     require: 1,
@@ -252,6 +260,10 @@ class Analyser {
         return LOG_LEVEL;
     }
 
+    static get walk() {
+        return walk;
+    }
+
     constructor() {
         this.log = this.genLogger();
     }
@@ -320,9 +332,9 @@ class Analyser {
         if (this.fileName) {
             fileName = this.fileName;
         } else if (this.baseId) {
-            fileName = "Module " + this.baseId;
+            fileName = __("Module %s", this.baseId);
         } else {
-            fileName = "Unknow source";
+            fileName = __("Unknow source");
         }
 
         if (log.loc) {
@@ -447,12 +459,12 @@ class Analyser {
 
             log.debug("process define", node);
             if (parent && parent.parent && parent.parent.node.type !== Syntax.Program) {
-                log.warning("Define may not be called.", node);
+                log.warning(__("Define may not be called."), node);
             }
 
             switch (args.length) {
                 case 0:
-                    log.warning("The parameter of define cannot be empty.", node);
+                    log.warning(__("The parameter of define cannot be empty."), node);
                     return walk.skip();
                     break;
                 case 1:
@@ -481,22 +493,22 @@ class Analyser {
             // 校验并提取模块id
             if (id !== null) {
                 if (id.type !== Syntax.Literal || !isString(id.value)) {
-                    log.warning("Id must be an literal string.", id);
+                    log.warning(__("Id must be an literal string."), id);
                     return walk.skip();
                 }
                 if (!isAbsoluteId(id.value)) {
-                    log.warning("Id must be absolute.", id);
+                    log.warning(__("Id must be absolute."), id);
                     return walk.skip();
                 }
                 modId = id.value;
             } else {
-                assert(this.baseId !== null, "Base ID is undefined.");
+                assert(this.baseId !== null, __("Base ID is undefined."));
                 modId = this.baseId;
             }
 
             // 校验factory
             if (factory.type !== Syntax.FunctionExpression) {
-                log.warning("Factory must be an function expression.", factory);
+                log.warning(__("Factory must be an function expression."), factory);
                 return walk.skip();
             }
 
@@ -506,7 +518,7 @@ class Analyser {
             if (dependencies !== null) {
                 // 依赖必须是数组表达式
                 if (dependencies.type !== Syntax.ArrayExpression) {
-                    log.warning("Dependencies must be an array expression.", dependencies);
+                    log.warning(__("Dependencies must be an array expression."), dependencies);
                     return walk.skip();
                 }
 
@@ -515,7 +527,7 @@ class Analyser {
                     if (item.type !== Syntax.Literal ||
                         !isString(item.value)
                     ) {
-                        log.warning("Dependencie id must be an literal string.", item);
+                        log.warning(__("Dependencie id must be an literal string."), item);
                         return null;
                     }
                     return item.value;
@@ -526,7 +538,7 @@ class Analyser {
             } else {
                 // 没有声明依赖时，factory 的参数个数不能大于 3 个
                 if (modParams.length > 3) {
-                    log.warning("When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3.",
+                    log.warning(__("When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3."),
                         factory);
                     return walk.skip();
                 }
@@ -596,7 +608,7 @@ class Analyser {
                     return modDepsAbsolute.indexOf(id) < 0;
                 });
                 if (missModules.length > 0) {
-                    log.warning("The dependent modules " + missModules.join(",") + " are not declared.",
+                    log.warning(__("The dependent modules [%s] are not declared.", missModules.join(", ")),
                         dependencies);
                 }
 
@@ -623,12 +635,12 @@ class Analyser {
             let requireId = args[0];
             log.debug("process require", node);
             if (args.length === 0) {
-                log.warning("The parameter of require cannot be empty.", node);
+                log.warning(__("The parameter of require cannot be empty."), node);
                 return walk.skip();
             }
 
             if (!this.currentDefine) {
-                log.error("Require must in a define factory..", node);
+                log.error(__("Require must in a define factory."), node);
                 return walk.skip();
             }
 
@@ -639,7 +651,7 @@ class Analyser {
                         // baseId为null时，为 global require
                         topLevelId = requireId.value;
                         if (!isAbsoluteId(topLevelId)) {
-                            log.warning("Relative id is not allowed in global require.", requireId);
+                            log.warning(__("Relative id is not allowed in global require."), requireId);
                             topLevelId = null;
                         }
                     } else {
@@ -657,14 +669,14 @@ class Analyser {
                                 // baseId为null时，为 global require
                                 topLevelId = id.value;
                                 if (!isAbsoluteId(topLevelId)) {
-                                    log.warning("Relative id is not allowed in global require.", id);
+                                    log.warning(__("Relative id is not allowed in global require."), id);
                                     topLevelId = null;
                                 }
                             } else {
                                 topLevelId = relative2absolute(id.value, baseId);
                             }
                         } else {
-                            log.warning("ID should be an literal string.", id);
+                            log.warning(__("ID should be an literal string."), id);
                         }
                         if (topLevelId !== null) {
                             this.currentDefine.requires.push(topLevelId);
@@ -672,7 +684,7 @@ class Analyser {
                     });
                     break;
                 default:
-                    log.warning("ID should be an literal string or array expression.", requireId);
+                    log.warning(__("ID should be an literal string or array expression."), requireId);
             }
         };
     }
@@ -751,7 +763,7 @@ class Analyser {
         let optimize = !!config.optimize;
 
         if (baseId !== null) {
-            assert(isAbsoluteId(baseId), "Base id must be absolute.");
+            assert(isAbsoluteId(baseId), __("Base id must be absolute."));
         }
         this.baseId = baseId;
         this.code = code;

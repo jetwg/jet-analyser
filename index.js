@@ -1,8 +1,6 @@
 "use strict";
 
-const fs = require("fs");
 const child_process = require('child_process');
-const walk = require("walk");
 const Analyser = require('./Analyser');
 
 let analyser = null;
@@ -30,7 +28,7 @@ function analyse(config) {
  *
  * @return {Object} 配置
  */
-function jetWalk(config) {
+function walk(config) {
     let argv = process.argv;
     let nodeCmd = config.nodeCmd || argv[0];
     let result = child_process.spawnSync(nodeCmd, ["./walk.js"], {
@@ -43,6 +41,6 @@ function jetWalk(config) {
 
 module.exports = {
     analyse: analyse,
-    walk: jetWalk,
+    walk: walk,
     LOG_LEVEL: Analyser.LOG_LEVEL
 };

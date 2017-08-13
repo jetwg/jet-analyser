@@ -1,0 +1,20 @@
+{
+  "Module %s": "模块 %s",
+  "Unknow source": "未知源代码",
+  "Define may not be called.": "内层 define 也许不会被调用.",
+  "The parameter of define cannot be empty.": "define 的参数不能为空.",
+  "Id must be an literal string.": "Id 需要是一个字符串字面量.",
+  "Id must be absolute.": "此处需要为绝对 ID.",
+  "Base ID is undefined.": "baseId 未定义.",
+  "Factory must be an function expression.": "不能分析非函数表达式的 factory.",
+  "Dependencies must be an array expression.": "不能分析非数组表达式的依赖列表.",
+  "Dependencie id must be an literal string.": "不能分析非字符串字面量的依赖 id.",
+  "When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3.": "依赖未声明时，factory 函数的参数个数最大为 3 个 (require, exports, module).",
+  "The dependent modules [%s] are not declared.": "依赖模块 [%s] 未声明在依赖列表中.",
+  "The parameter of require cannot be empty.": "require 参数不能为空.",
+  "Require must in a define factory.": "Require must in a define factory.",
+  "Relative id is not allowed in global require.": "全局 require 不能使用相对 id.",
+  "ID should be an literal string.": "Id 需要是一个字符串字面量.",
+  "ID should be an literal string or array expression.": "Id 需要是一个字符串字面量或数组表达式.",
+  "Base id must be absolute.": "baseId 不能为相对路径."
+}
