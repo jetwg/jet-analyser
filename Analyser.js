@@ -324,7 +324,8 @@ class Analyser {
     doPrintLog(log, stream) {
         let output = [];
         let fileName;
-        let lineNumber;
+        let line;
+        let column;
         let message;
 
         stream = stream || process.stderr;
@@ -338,9 +339,11 @@ class Analyser {
         }
 
         if (log.loc) {
-            lineNumber = log.loc.line;
+            line = log.loc.line;
+            column = log.loc.column;
         } else {
-            lineNumber = null;
+            line = null;
+            column = null;
         }
 
         switch (log.level) {
@@ -363,7 +366,7 @@ class Analyser {
                 message = log.message;
         }
 
-        stream.write(fileName + ":" + (lineNumber ? lineNumber + ": " : " ") + message + "\n");
+        stream.write(fileName + ":" + (line ? line + ":" + column + ": " : " ") + message + "\n");
 
         if (log.loc) {
             this.showLocation(log.loc, stream);
@@ -383,7 +386,7 @@ class Analyser {
         if (column > MAX_LINE) {
             start = column - MIN_LINE;
             end = start + MAX_LINE;
-            arrow = start + MIN_LINE;
+            arrow = MIN_LINE;
         }
         if (start > 0) {
             output.push(colors.green("..."));
@@ -465,7 +468,6 @@ class Analyser {
             switch (args.length) {
                 case 0:
                     log.warning(__("The parameter of define cannot be empty."), node);
-                    return walk.skip();
                     break;
                 case 1:
                     // define(factory)
@@ -493,11 +495,11 @@ class Analyser {
             // 校验并提取模块id
             if (id !== null) {
                 if (id.type !== Syntax.Literal || !isString(id.value)) {
-                    log.warning(__("Id must be an literal string."), id);
+                    log.error(__("Id must be an literal string."), id);
                     return walk.skip();
                 }
                 if (!isAbsoluteId(id.value)) {
-                    log.warning(__("Id must be absolute."), id);
+                    log.error(__("Id must be absolute."), id);
                     return walk.skip();
                 }
                 modId = id.value;
