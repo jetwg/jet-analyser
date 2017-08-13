@@ -244,14 +244,19 @@ HOOKS[Syntax.CallExpression] = (node, parent, thisObj) => {
 };
 
 // 处理函数作用域
-// TODO 要不要处理 with let 等等？-_-!!
-// TODO 还有变量提升 -_- ...
-// TODO 还有 变量定义
 HOOKS[Syntax.ArrowFunctionExpression] =
     HOOKS[Syntax.FunctionDeclaration] =
     HOOKS[Syntax.FunctionExpression] =
     (node, parent, thisObj) => {
         return thisObj.processFunction(node, parent);
+    };
+
+// 处理变量定义
+// TODO 还有变量提升 -_- ...
+// TODO 要不要处理 with let 等等？-_-!!
+HOOKS[Syntax.VariableDeclarator] =
+    (node, parent, thisObj) => {
+        return thisObj.processVariable(node, parent);
     };
 
 
@@ -752,6 +757,11 @@ class Analyser {
                 break;
         }
         return walk.skip();
+    }
+
+    processVariable(node, parent) {
+        assert(node.id.type === Syntax.Identifier, __("Variable id must be Identifier."));
+        this.declareValue(node.id.name);
     }
 
     analyse(config) {

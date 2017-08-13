@@ -1,5 +1,5 @@
 {
-    "src": "/Users/zhangyuanwei/workspace/baidu/ps-aladdin/zhaopin-wise-atom",
+    "src": "./spec",
     "dist": "./dist",
     "baseId": "a/b/c"
 }

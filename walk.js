@@ -135,9 +135,11 @@ function doWalk(options, workers) {
     let srcDir = options.src;
     let distDir = options.dist;
     let baseId = options.baseId || "";
+    let amdWrapper = !!options.amdWrapper;
+    let optimize = !!options.optimize;
 
     let walker = walk.walk(srcDir, options.walkOption || {});
-    let filter = options.filter || defaultFilter;
+    let filter = defaultFilter; // TODO 怎么能通过调用的时候传进来呢?
 
     let fifo = genFifo();
 
@@ -172,7 +174,8 @@ function doWalk(options, workers) {
             outputFile: distFile,
             baseId: id,
             source: fileName,
-            amdWrapper: options.amdWrapper
+            amdWrapper: amdWrapper,
+            optimize: optimize
         }, next);
     });
 
@@ -278,16 +281,9 @@ function workerMain() {
         let inputFile = config.inputFile;
         let outputFile = config.outputFile;
 
-        process.stderr.write("analysing \"" + inputFile + "\"...\n");
+        // process.stderr.write("analysing \"" + inputFile + "\"...\n");
         let code = fs.readFileSync(inputFile, "utf8");
         config.code = code;
-
-        // let code = config.code || "";
-        // let amdWrapper = !!config.amdWrapper;
-        // let baseId = config.baseId || null;
-        // let source = config.source;
-        // let useHash = !!config.useHash;
-        // let optimize = !!config.optimize;
 
         let result = analyser.analyse(config);
         analyser.printLog();

@@ -19,13 +19,13 @@ function analyse(config) {
 /**
  * 遍历目录
  *
- * @param {Object} config 配置参数
- * @param {string} config.src 源目录
- * @param {string} config.dist 目的目录
- * @param {string} config.baseId 该源目录对应的绝对id
- * @param {function} config.filter 文件过滤器
- * @param {object} config.walkOption walk 配置
- *
+ * @param {Object}  config 配置参数
+ * @param {string}  config.src 源目录
+ * @param {string}  config.dist 目的目录
+ * @param {string}  config.baseId 该源目录对应的绝对id
+ * @param {boolean} config.amdWrapper 是否添加 AMD 包装
+ * @param {boolean} config.optimize 是否优化(其实就是输出成一行-_-!!)
+ * @param {object}  config.walkOption walk 配置
  * @return {Object} 配置
  */
 function walk(config) {
