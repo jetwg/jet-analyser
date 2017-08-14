@@ -21,10 +21,10 @@ const jet = require('jet-analyser');
  * @return {Object.<output:String, defines:Object, depends:Array, requires:Array, map:String>} 单个文件配置
  */
 jet.analyse({
-	code:"",                   // 【必选】源代码
-	amdWrapper:false|true,     // 【可选】是否添加 AMD 包装，默认 false
-	baseId: "a/b/c/d",         // 【匿名模块必选】该模块的绝对路径，用于计算相对路径
-	fileName: "a/b/c/d.js",    // 【可选】sourceMap 的源文件名
+    code:"...",                // 【必选】源代码
+    amdWrapper:false|true,     // 【可选】是否添加 AMD 包装，默认 false
+    baseId: "a/b/c/d",         // 【匿名模块必选】该模块的绝对路径，用于计算相对路径
+    fileName: "a/b/c/d.js",    // 【可选】sourceMap 的源文件名
     sourceMapRoot: "http://foo.com/bar,", // 【可选】sourceMap 根路径，可以是URL
     beautify: true             // 【可选】是否格式化代码
 });
@@ -49,10 +49,10 @@ jet.analyse({
  */
 jet.walk({
     srcDir:"foo/bar",          // 【必选】源码路径
-    distDir:false|true,        // 【必选】目标路径
+    distDir:"bar/foo",         // 【必选】目标路径
     baseId: "a/b/c/d",         // 【必选】参考绝对路径，用于计算该目录下的相对路径
     encoding: "utf8",          // 【可选】代码编码，默认 "utf8"
-    useHash: true,             // 【可选】是否使用 hash 文件名，默认 false
+    useHash: false|true,       // 【可选】是否使用 hash 文件名，默认 false
     analyserConfig:{},         // 【可选】analyse 配置，参考 jet.analyse
     walkOption:{}              // 【可选】walk 配置
 });
