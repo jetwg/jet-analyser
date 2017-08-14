@@ -20,23 +20,25 @@ function analyse(config) {
  * 遍历目录
  *
  * @param {Object}  config 配置参数
- * @param {string}  config.src 源目录
- * @param {string}  config.dist 目的目录
+ * @param {string}  config.srcDir 源目录
+ * @param {string}  config.distDir 目的目录
  * @param {string}  config.baseId 该源目录对应的绝对id
- * @param {boolean} config.amdWrapper 是否添加 AMD 包装
- * @param {boolean} config.optimize 是否优化(其实就是输出成一行-_-!!)
+ * @param {string}  config.sourceMapRoot 该源目录对应的 sourceMap 根路径
+ * @param {string}  config.encoding 代码编码
+ * @param {object}  config.analyserConfig Analyser 配置
  * @param {object}  config.walkOption walk 配置
  * @return {Object} 配置
  */
 function walk(config) {
     let argv = process.argv;
-    let nodeCmd = config.nodeCmd || argv[0];
-    let result = child_process.spawnSync(nodeCmd, ["./walk.js"], {
+    let result = child_process.spawnSync(argv[0], [__dirname + "/walk.js"], {
         input: JSON.stringify(config),
-        encoding: "utf8"
+        stdio: [
+            'pipe', 'pipe', process.stderr
+        ]
     });
     let stdout = result.stdout;
-    return JSON.parse(result.stdout);
+    return JSON.parse(stdout.toString("utf8"));
 }
 
 module.exports = {

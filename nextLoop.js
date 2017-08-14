@@ -24,6 +24,11 @@ function nextLoop(fn, args) {
     var index;
     var count;
     var item;
+
+    if (typeof fn !== 'function') {
+        throw new Error('fn is not a function');
+    }
+
     if (running) {
         penddingList.push([fn, args]);
         return;

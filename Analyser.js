@@ -1,8 +1,7 @@
 "use strict";
-const esprima = require('esprima');
+const parse = require("acorn").parse;
 const escodegen = require('escodegen');
 const estemplate = require('estemplate');
-const crypto = require('crypto');
 const estraverse = require('estraverse');
 const colors = require('colors/safe');
 const i18n = require("i18n");
@@ -58,15 +57,6 @@ function isAbsoluteId(id) {
     return isString(id) && id.length > 0 && id.indexOf(".") !== 0;
 }
 
-function md5(data, len) {
-    let md5sum = crypto.createHash('md5');
-    let encoding = typeof data === 'string' ? 'utf8' : 'binary';
-
-    md5sum.update(data, encoding);
-    len = len || 8;
-
-    return md5sum.digest('hex').substring(0, len);
-}
 
 function walk(node, parent, hook, ctx) {
     let type;
@@ -327,7 +317,6 @@ class Analyser {
     }
 
     doPrintLog(log, stream) {
-        let output = [];
         let fileName;
         let line;
         let column;
@@ -401,10 +390,7 @@ class Analyser {
         if (end < line.length) {
             output.push(colors.green("..."));
         }
-        output.push("\n");
-        while (arrow--) {
-            output.push(" ");
-        }
+        output.push("\n", Array(arrow + 1).join(" "));
         output.push(colors.green("^"), "\n");
 
         stream.write(output.join(""));
@@ -702,7 +688,6 @@ class Analyser {
     }
 
     processCall(name, node, parent) {
-        let log = this.log;
         let callee = this.getValue(name);
         if (callee !== undefined) {
             return callee(node, parent);
@@ -770,25 +755,39 @@ class Analyser {
         let code = config.code || "";
         let amdWrapper = !!config.amdWrapper;
         let baseId = config.baseId || null;
-        let source = config.source;
-        let useHash = !!config.useHash;
+        let fileName = config.fileName;
+        let sourceMapRoot = config.sourceMapRoot || null;
+        // let useHash = !!config.useHash;
         let optimize = !!config.optimize;
+        let ast;
 
         if (baseId !== null) {
             assert(isAbsoluteId(baseId), __("Base id must be absolute."));
         }
         this.baseId = baseId;
         this.code = code;
-        this.fileName = source;
+        this.fileName = fileName;
 
-        let ast = esprima.parse(code, {
-            // attachComment: true,
-            range: true,
-            loc: true
-        });
+        try {
+            ast = parse(code, {
+                // attachComment: true,
+                locations: true,
+                range: true,
+                loc: true,
+                tolerant: true
+            });
+        } catch (e) {
+            // 这里模拟一个node,
+            // 以便定位错误位置
+            this.log.error(e.message, {
+                loc: {
+                    start: e.loc
+                }
+            });
+            throw e;
+        }
 
         if (amdWrapper) {
-            let fs = require("fs");
             ast = wrapAmd(ast);
         }
 
@@ -796,32 +795,34 @@ class Analyser {
 
         let codegenConf = {
             sourceMap: true,
-            // sourceContent: code,
             sourceMapWithCode: true,
-            parse: esprima.parse,
             format: {
                 compact: optimize
             }
         };
 
-        if (source) {
-            codegenConf.sourceMap = source;
+        if (fileName) {
+            codegenConf.sourceMap = fileName;
         } else if (baseId) {
             codegenConf.sourceMap = baseId;
         }
 
-        let output = escodegen.generate(ast, codegenConf);
-        let outputSource = source ? source : baseId;
-
-        if (useHash) {
-            let hash = md5(output.code);
-
-            if (/\.js$/.test(outputSource)) {
-                outputSource = outputSource.replace(/\.js$/, `_${hash}.js`);
-            } else {
-                outputSource = outputSource + '_' + hash;
-            }
+        if (sourceMapRoot) {
+            codegenConf.sourceMapRoot = sourceMapRoot;
         }
+
+        let output = escodegen.generate(ast, codegenConf);
+        // let outputSource = source ? source : baseId;
+
+        // if (useHash) {
+        //     let hash = md5(output.code);
+
+        //     if (/\.js$/.test(outputSource)) {
+        //         outputSource = outputSource.replace(/\.js$/, `_${hash}.js`);
+        //     } else {
+        //         outputSource = outputSource + '_' + hash;
+        //     }
+        // }
         /*
         console.log("==", this.baseId, "===========================");
         console.log(code);
@@ -842,7 +843,7 @@ class Analyser {
             depends: this.depends,
             requires: this.requires,
             map: output.map.toString(),
-            source: outputSource,
+            // source: outputSource,
             logs: this.logs
         };
     }

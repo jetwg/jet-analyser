@@ -14,10 +14,10 @@
   "author": "chenrui09",
   "license": "ISC",
   "dependencies": {
+    "acorn": "^5.1.1",
     "colors": "^1.1.2",
     "crypto": "0.0.3",
     "escodegen": "^1.8.1",
-    "esprima": "^4.0.0",
     "estemplate": "^0.5.1",
     "estraverse": "^4.2.0",
     "i18n": "^0.8.3",

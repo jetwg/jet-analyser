@@ -6,8 +6,7 @@ const cluster = require('cluster');
 const numCPUs = require('os').cpus().length;
 const walk = require("walk");
 const mkdirp = require('mkdirp');
-const Analyser = require('./Analyser');
-const nextLoop = require('./nextLoop');
+const genAsyncBuffer = require('./genAsyncBuffer');
 
 function endWith(str, end) {
     let endLen = end.length;
@@ -50,106 +49,108 @@ function path2id(path) {
 
 function defaultFilter(root, fileStats) {
     let fileName = fileStats.name;
-    return fileName.substring(fileName.length - 3) === ".js";
+    return endWith(fileName, ".js");
 }
 
-function genFifo() {
-    const BUFFER_SIZE = numCPUs;
-    let buffer = [];
-    let waitList = [];
-
-    let getNext = null;
-    let onFinish = null;
-    let endded = false;
-    let finished = false;
-
-    function produce() {
-        if (!endded) {
-            nextLoop(getNext);
-        }
-    }
-
-    function consume() {
-        let bufLen = buffer.length;
-        let waitLen = waitList.length;
-        let count = Math.min(bufLen, waitLen);
-        let index;
-        // console.log("data:", bufLen, " task:", waitLen);
-        for (index = 0; index < count; index++) {
-            nextLoop(waitList.pop(), [buffer.pop()]);
-        }
-
-        bufLen = bufLen - count;
-
-        if (endded) {
-            if (bufLen === 0) {
-                finish();
+function getSourceCode(fileName, encoding) {
+    encoding = encoding || "utf8";
+    return new Promise((resolve, reject) => {
+        fs.readFile(fileName, encoding, (err, data) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(data);
             }
-        } else {
-            if (bufLen < BUFFER_SIZE) {
-                produce();
+        });
+    });
+}
+
+function hashToPath(hash) {
+    hash = hash
+        .substring(0, 8)
+        .replace(/\//g, '_')
+        .replace(/\+/g, '_');
+
+    return hash.replace(/.{2}/g, '$&/') + hash;
+}
+
+
+function writeFile(file, data) {
+    mkdirp(path.dirname(file), (err) => {
+        if (err) {
+            console.error(err);
+            return;
+        }
+        fs.writeFile(file, data, (err) => {
+            if (err) {
+                console.error(err);
             }
-        }
-    }
+        });
+    });
+}
 
-    function finish() {
-        if (!finished) {
-            if (!buffer.length) {
-                finished = true;
-                nextLoop(onFinish);
-            }
-        }
-    }
+function handleResult(data) {
+    // srcDir: srcDir,
+    // distDir: distDir,
+    // relativePath: relativePath
+    // data: {
+    //     config: data.config,
+    //     analyseResult: result
+    // }
+    let config = data.config;
+    let analyseResult = data.analyseResult;
 
-    function doPut(item, next) {
-        buffer.unshift(item);
-        getNext = next;
-        consume();
-    }
+    let srcPath;
+    let distPath;
+    let mapPath;
 
-    function doGet(callback) {
-        waitList.unshift(callback);
-        consume();
-    }
+    let distFile;
+    let mapFile;
 
-    function end(callback) {
-        if (!endded) {
-            endded = true;
-            onFinish = callback;
-            nextLoop(finish);
-        }
+    srcPath = config.relativePath;
+    distPath = srcPath;
+
+    if (config.useHash) {
+        distPath = hashToPath(config.hash) + ".js";
     }
+    mapPath = distPath + ".map";
+
+    distFile = config.distDir + "/" + distPath;
+    mapFile = config.distDir + "/" + mapPath;
+
+    writeFile(distFile, analyseResult.output);
+    writeFile(mapFile, analyseResult.map);
 
     return {
-        put: (item, next) => {
-            nextLoop(doPut, [item, next]);
-        },
-        get: (callback) => {
-            nextLoop(doGet, [callback]);
-        },
-        end: end
+        src: srcPath,
+        dist: distPath,
+        map: mapPath,
+        defines: analyseResult.defines,
+        depends: analyseResult.depends,
+        requires: analyseResult.requires
     };
 }
 
 function doWalk(options, workers) {
-    let srcDir = options.src;
-    let distDir = options.dist;
+    let srcDir = options.srcDir;
+    let distDir = options.distDir;
     let baseId = options.baseId || "";
-    let amdWrapper = !!options.amdWrapper;
-    let optimize = !!options.optimize;
-
-    let walker = walk.walk(srcDir, options.walkOption || {});
+    let encoding = options.encoding;
+    let useHash = options.useHash || false;
+    let analyserConfig = options.analyserConfig || {};
     let filter = defaultFilter; // TODO 怎么能通过调用的时候传进来呢?
 
-    let fifo = genFifo();
+    let walker = walk.walk(srcDir, options.walkOption || {});
+    let walkNext = null;
 
+    //let fifo = genFifo();
+    let fifo = genAsyncBuffer(() => {
+        walkNext && walkNext();
+    }, numCPUs);
     let srcDirLen = srcDir.length;
-
     walker.on("file", (root, fileStats, next) => {
         let fileName;
         let relativePath;
-        let sourceFile;
-        let distFile;
         let id;
         if (filter(root, fileStats) !== true) {
             next();
@@ -165,37 +166,47 @@ function doWalk(options, workers) {
         }
 
         relativePath = normalizeRelativePath(fileName.substring(srcDirLen));
-        sourceFile = srcDir + "/" + relativePath;
-        distFile = distDir + "/" + relativePath;
         id = path2id(normalizeRelativePath(baseId + "/" + relativePath));
 
-        fifo.put({
-            inputFile: sourceFile,
-            outputFile: distFile,
-            baseId: id,
-            source: fileName,
-            amdWrapper: amdWrapper,
-            optimize: optimize
-        }, next);
+        getSourceCode(fileName, encoding)
+            .then((code) => {
+                let data = {
+                    config: {
+                        srcDir: srcDir,
+                        distDir: distDir,
+                        relativePath: relativePath,
+                        useHash: useHash
+                    },
+                    analyserConfig: Object.assign({},
+                        analyserConfig, {
+                            code: code,
+                            baseId: id,
+                            fileName: relativePath
+                        })
+                };
+                walkNext = next;
+                fifo.put(data);
+                // fifo.put(data, next);
+            });
     });
 
     walker.on('end', () => {
         fifo.end(onFifoEnd);
     });
 
-    let config = [];
+    let result = [];
     cluster.on("message", (worker, msg) => {
         switch (msg.type) {
             case "idle":
-                fifo.get((conf) => {
+                fifo.get((config) => {
                     worker.send({
                         type: "analyse",
-                        config: conf
+                        data: config
                     });
                 });
                 break;
             case "result":
-                config.push(msg.config);
+                result.push(handleResult(msg.data));
                 break;
             case "end":
                 onWorkerEnd(worker);
@@ -204,17 +215,23 @@ function doWalk(options, workers) {
         }
     });
 
+    let fifoEndded = false;
     cluster.on('exit', (worker, code, signal) => {
-        if (code !== 0) {
+        let index = workers.indexOf(worker);
+        if (!fifoEndded) {
             console.error('worker %d died (%s). restarting...',
                 worker.process.pid, signal || code);
-            let index = workers.indexOf(worker);
-            worker = cluster.fork();
-            workers.splice(index, 1, worker);
+            cluster.setupMaster({
+                exec: __dirname + "/worker.js"
+            });
+            workers.splice(index, 1, cluster.fork());
+        } else {
+            workers.splice(index, 1);
         }
     });
 
     function onFifoEnd() {
+        fifoEndded = true;
         workers.forEach((worker) => {
             worker.send({
                 type: "end"
@@ -222,7 +239,6 @@ function doWalk(options, workers) {
         });
     }
 
-    let workerCount = workers.length;
     let enddedWorkers = 0;
     let onFinish = null;
 
@@ -230,8 +246,8 @@ function doWalk(options, workers) {
         worker.exitedAfterDisconnect = true;
         worker.disconnect();
         enddedWorkers++;
-        if (enddedWorkers >= workerCount) {
-            onFinish && onFinish(config);
+        if (enddedWorkers >= workers.length) {
+            onFinish && onFinish(result);
         }
     }
 
@@ -241,7 +257,7 @@ function doWalk(options, workers) {
 }
 
 function getOptionFromStdin() {
-    process.stderr.write("reading config form stdin...\n");
+    console.error("reading config form stdin...");
     return new Promise((resolve, reject) => {
         let input = [];
 
@@ -259,78 +275,21 @@ function getOptionFromStdin() {
     });
 }
 
-function masterMain(workers) {
+function main() {
+    let workers = [];
     getOptionFromStdin()
         .then((option) => {
+            cluster.setupMaster({
+                exec: __dirname + "/worker.js"
+            });
+            for (let i = 0; i < numCPUs; i++) {
+                workers.push(cluster.fork());
+            }
             return doWalk(option, workers);
         })
         .then((config) => {
             process.stdout.write(JSON.stringify(config));
         });
-}
-
-function workerMain() {
-    let analyser = new Analyser();
-    let sendIdleMessage = () => {
-        process.send({
-            type: "idle"
-        });
-    };
-
-    let analyse = (config) => {
-        let inputFile = config.inputFile;
-        let outputFile = config.outputFile;
-
-        // process.stderr.write("analysing \"" + inputFile + "\"...\n");
-        let code = fs.readFileSync(inputFile, "utf8");
-        config.code = code;
-
-        let result = analyser.analyse(config);
-        analyser.printLog();
-        mkdirp.sync(path.dirname(outputFile));
-        fs.writeFileSync(outputFile, result.output);
-        process.send({
-            type: "result",
-            config: {
-                inputFile: inputFile,
-                outputFile: outputFile,
-                defines: result.defines,
-                depends: result.depends,
-                requires: result.requires
-                    // logs: result.logs
-            }
-        });
-    };
-
-    process.on("message", (msg) => {
-        switch (msg.type) {
-            case "analyse":
-                analyse(msg.config);
-                sendIdleMessage();
-                break;
-            case "end":
-                process.send({
-                    type: "end"
-                });
-                break;
-            default:
-        }
-    });
-
-    sendIdleMessage();
-}
-
-function main() {
-    if (cluster.isMaster) {
-        // Fork workers.
-        let workers = [];
-        for (let i = 0; i < numCPUs; i++) {
-            workers.push(cluster.fork());
-        }
-        masterMain(workers);
-    } else {
-        workerMain();
-    }
 }
 
 main();
