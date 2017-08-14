@@ -71,7 +71,7 @@ function hashToPath(hash) {
         .replace(/\//g, '_')
         .replace(/\+/g, '_');
 
-    return hash.replace(/.{2}/g, '$&/') + hash;
+    return hash.match(/.{2}|./g).join("/");
 }
 
 
