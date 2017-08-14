@@ -758,7 +758,7 @@ class Analyser {
         let fileName = config.fileName;
         let sourceMapRoot = config.sourceMapRoot || null;
         // let useHash = !!config.useHash;
-        let optimize = !!config.optimize;
+        let beautify = !!config.beautify;
         let ast;
 
         if (baseId !== null) {
@@ -797,7 +797,7 @@ class Analyser {
             sourceMap: true,
             sourceMapWithCode: true,
             format: {
-                compact: optimize
+                compact: !beautify
             }
         };
 
@@ -844,7 +844,7 @@ class Analyser {
             requires: this.requires,
             map: output.map.toString(),
             // source: outputSource,
-            logs: this.logs
+            // logs: this.logs
         };
     }
 }
