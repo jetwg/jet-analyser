@@ -1,10 +1,10 @@
-"use strict";
-const parse = require("acorn").parse;
+'use strict';
+const parse = require('acorn').parse;
 const escodegen = require('escodegen');
 const estemplate = require('estemplate');
 const estraverse = require('estraverse');
 const colors = require('colors/safe');
-const i18n = require("i18n");
+const i18n = require('i18n');
 const __ = i18n.__;
 const Syntax = estraverse.Syntax;
 const VisitorKeys = estraverse.VisitorKeys;
@@ -12,17 +12,17 @@ const VisitorKeys = estraverse.VisitorKeys;
 i18n.configure({
     locales: ['zh-CN'],
     directory: __dirname + '/locales',
-    defaultLocale: "zh-CN"
+    defaultLocale: 'zh-CN'
 });
 
 const BUILDIN_MODULE = {
     require: 1,
     exports: 1,
-    module: 1,
+    module: 1
 };
 
 const amdTemplate = estemplate.compile(
-    "define(function (require, exports, module) {%= body %});", {
+    'define(function (require, exports, module) {%= body %});', {
         attachComment: true
     });
 
@@ -40,23 +40,20 @@ function hasOwn(obj, key) {
         native_hasOwn.call(obj, key);
 }
 
-
-
 function assert(condition, message) {
-    message = message || "";
+    message = message || '';
     if (condition !== true) {
         throw new Error(message);
     }
 }
 
 function isString(str) {
-    return (typeof str) === "string";
+    return (typeof str) === 'string';
 }
 
 function isAbsoluteId(id) {
-    return isString(id) && id.length > 0 && id.indexOf(".") !== 0;
+    return isString(id) && id.length > 0 && id.indexOf('.') !== 0;
 }
-
 
 function walk(node, parent, hook, ctx) {
     let type;
@@ -65,7 +62,9 @@ function walk(node, parent, hook, ctx) {
     let hookName;
     let ret;
 
-    if (!node) return;
+    if (!node) {
+        return;
+    }
 
     type = node.type;
 
@@ -75,11 +74,14 @@ function walk(node, parent, hook, ctx) {
         if (ret !== undefined) {
             if (ret.type === WALK_SKIP) {
                 return node;
-            } else if (ret.type === WALK_REMOVE) {
+            }
+            else if (ret.type === WALK_REMOVE) {
                 return null;
-            } else if (ret.type === WALK_REPLACE) {
+            }
+            else if (ret.type === WALK_REPLACE) {
                 return ret.payload;
-            } else {
+            }
+            else {
                 // TODO 不管？
             }
         }
@@ -88,7 +90,7 @@ function walk(node, parent, hook, ctx) {
     if (hasOwn(VisitorKeys, type)) {
         VisitorKeys[type].forEach((key) => {
             value = node[key];
-            hookName = type + "." + key;
+            hookName = type + '.' + key;
 
             if (hasOwn(hook, hookName)) {
                 ret = hook[hookName](value, parent, ctx);
@@ -97,13 +99,16 @@ function walk(node, parent, hook, ctx) {
                     if (ret.type === WALK_SKIP) {
                         node[key] = value;
                         return;
-                    } else if (ret.type === WALK_REMOVE) {
+                    }
+                    else if (ret.type === WALK_REMOVE) {
                         node[key] = null;
                         return;
-                    } else if (ret.type === WALK_REPLACE) {
+                    }
+                    else if (ret.type === WALK_REPLACE) {
                         node[key] = ret.payload;
                         return;
-                    } else {
+                    }
+                    else {
                         // TODO 不管？
                     }
                 }
@@ -116,7 +121,8 @@ function walk(node, parent, hook, ctx) {
                         node: node
                     }, hook, ctx);
                 });
-            } else {
+            }
+            else {
                 node[key] = walk(value, {
                     parent: parent,
                     node: node
@@ -124,7 +130,8 @@ function walk(node, parent, hook, ctx) {
             }
 
         });
-    } else {
+    }
+    else {
         // TODO Unknow type??
     }
 
@@ -178,7 +185,8 @@ function relative2absolute(id, baseId) {
             case '..':
                 if (res.length && res[res.length - 1] !== '..') {
                     res.pop();
-                } else { // allow above root
+                }
+                else { // allow above root
                     res.push(seg);
                 }
                 break;
@@ -209,7 +217,7 @@ function genLiteralArray(elements) {
     };
 }
 
-const LOG_LEVELS = ["debug", "info", "notice", "warning", "error"];
+const LOG_LEVELS = ['debug', 'info', 'notice', 'warning', 'error'];
 
 const LOG_LEVEL = LOG_LEVELS.reduce((map, name, index) => {
     map[name.toUpperCase()] = index;
@@ -217,11 +225,11 @@ const LOG_LEVEL = LOG_LEVELS.reduce((map, name, index) => {
 }, {});
 
 colors.setTheme({
-    "debug": "blue",
-    "info": "green",
-    "notice": "cyan",
-    "warning": "yellow",
-    "error": "red"
+    debug: 'blue',
+    info: 'green',
+    notice: 'cyan',
+    warning: 'yellow',
+    error: 'red'
 });
 
 const HOOKS = {};
@@ -231,24 +239,20 @@ HOOKS[Syntax.CallExpression] = (node, parent, thisObj) => {
     if (callee.type === Syntax.Identifier) {
         return thisObj.processCall(callee.name, node, parent);
     }
+
 };
 
 // 处理函数作用域
-HOOKS[Syntax.ArrowFunctionExpression] =
-    HOOKS[Syntax.FunctionDeclaration] =
-    HOOKS[Syntax.FunctionExpression] =
-    (node, parent, thisObj) => {
-        return thisObj.processFunction(node, parent);
-    };
+HOOKS[Syntax.ArrowFunctionExpression] = HOOKS[Syntax.FunctionDeclaration] = HOOKS[Syntax.FunctionExpression] = (node, parent, thisObj) => {
+    return thisObj.processFunction(node, parent);
+};
 
 // 处理变量定义
 // TODO 还有变量提升 -_- ...
 // TODO 要不要处理 with let 等等？-_-!!
-HOOKS[Syntax.VariableDeclarator] =
-    (node, parent, thisObj) => {
-        return thisObj.processVariable(node, parent);
-    };
-
+HOOKS[Syntax.VariableDeclarator] = (node, parent, thisObj) => {
+    return thisObj.processVariable(node, parent);
+};
 
 class Analyser {
     static get LOG_LEVEL() {
@@ -296,9 +300,11 @@ class Analyser {
                 if (node && node.range) {
                     log.range = node.range;
                 }
+
                 if (node && node.loc) {
                     log.loc = node.loc.start;
                 }
+
                 this.logs.push(log);
             };
         });
@@ -309,10 +315,12 @@ class Analyser {
         if (level === undefined) {
             level = LOG_LEVEL.INFO;
         }
+
         this.logs.forEach((log) => {
             if (log.level >= level) {
                 this.doPrintLog(log, stream);
             }
+
         });
     }
 
@@ -326,16 +334,19 @@ class Analyser {
 
         if (this.fileName) {
             fileName = this.fileName;
-        } else if (this.baseId) {
-            fileName = __("Module %s", this.baseId);
-        } else {
-            fileName = __("Unknow source");
+        }
+        else if (this.baseId) {
+            fileName = __('Module %s', this.baseId);
+        }
+        else {
+            fileName = __('Unknow source');
         }
 
         if (log.loc) {
             line = log.loc.line;
             column = log.loc.column;
-        } else {
+        }
+        else {
             line = null;
             column = null;
         }
@@ -360,7 +371,7 @@ class Analyser {
                 message = log.message;
         }
 
-        stream.write(fileName + ":" + (line ? line + ":" + column + ": " : " ") + message + "\n");
+        stream.write(fileName + ':' + (line ? line + ':' + column + ': ' : ' ') + message + '\n');
 
         if (log.loc) {
             this.showLocation(log.loc, stream);
@@ -376,48 +387,51 @@ class Analyser {
         let end = MAX_LINE;
         let arrow = column;
         let output = [];
-        //line.length;
+        // line.length;
         if (column > MAX_LINE) {
             start = column - MIN_LINE;
             end = start + MAX_LINE;
             arrow = MIN_LINE;
         }
+
         if (start > 0) {
-            output.push(colors.green("..."));
+            output.push(colors.green('...'));
             arrow += 3;
         }
+
         output.push(line.substring(start, end));
         if (end < line.length) {
-            output.push(colors.green("..."));
+            output.push(colors.green('...'));
         }
-        output.push("\n", Array(arrow + 1).join(" "));
-        output.push(colors.green("^"), "\n");
 
-        stream.write(output.join(""));
+        output.push('\n', Array(arrow + 1).join(' '));
+        output.push(colors.green('^'), '\n');
 
+        stream.write(output.join(''));
     }
 
     getSourceLine(line) {
         if (this.codeLines === null) {
-            this.codeLines = this.code.split("\n");
+            this.codeLines = this.code.split('\n');
         }
+
         line = line | 0;
         return this.codeLines[Math.max(line - 1, 0)];
     }
 
     pushScope() {
-        this.log.debug("push scope.");
+        this.log.debug('push scope.');
         this.scopeStack.push(this.currentScope);
         this.currentScope = {};
     }
 
     popScope() {
-        this.log.debug("pop scope:[" + Object.keys(this.currentScope).join(",") + "].");
+        this.log.debug('pop scope:[' + Object.keys(this.currentScope).join(',') + '].');
         this.currentScope = this.scopeStack.pop();
     }
 
     declareValue(name, value) {
-        this.log.debug("declare value:" + name + ".");
+        this.log.debug('declare value:' + name + '.');
         this.currentScope[name] = value;
     }
 
@@ -426,12 +440,14 @@ class Analyser {
         if (hasOwn(this.currentScope, name)) {
             return this.currentScope[name];
         }
+
         index = this.scopeStack.length;
         while (index--) {
             let scope = this.scopeStack[index];
             if (hasOwn(scope, name)) {
                 return scope[name];
             }
+
         }
         return undefined;
     }
@@ -451,14 +467,14 @@ class Analyser {
 
             let log = this.log;
 
-            log.debug("process define", node);
+            log.debug('process define', node);
             if (parent && parent.parent && parent.parent.node.type !== Syntax.Program) {
-                log.warning(__("Define may not be called."), node);
+                log.warning(__('Define may not be called.'), node);
             }
 
             switch (args.length) {
                 case 0:
-                    log.warning(__("The parameter of define cannot be empty."), node);
+                    log.warning(__('The parameter of define cannot be empty.'), node);
                     break;
                 case 1:
                     // define(factory)
@@ -469,7 +485,8 @@ class Analyser {
                     // define(id, factory)
                     if (args[0].type === Syntax.ArrayExpression) {
                         dependencies = args[0];
-                    } else {
+                    }
+                    else {
                         id = args[0];
                     }
                     factory = args[1];
@@ -486,22 +503,25 @@ class Analyser {
             // 校验并提取模块id
             if (id !== null) {
                 if (id.type !== Syntax.Literal || !isString(id.value)) {
-                    log.error(__("Id must be an literal string."), id);
+                    log.error(__('Id must be an literal string.'), id);
                     return walk.skip();
                 }
+
                 if (!isAbsoluteId(id.value)) {
-                    log.error(__("Id must be absolute."), id);
+                    log.error(__('Id must be absolute.'), id);
                     return walk.skip();
                 }
+
                 modId = id.value;
-            } else {
-                assert(this.baseId !== null, __("Base ID is undefined."));
+            }
+            else {
+                assert(this.baseId !== null, __('Base ID is undefined.'));
                 modId = this.baseId;
             }
 
             // 校验factory
             if (factory.type !== Syntax.FunctionExpression) {
-                log.warning(__("Factory must be an function expression."), factory);
+                log.warning(__('Factory must be an function expression.'), factory);
                 return walk.skip();
             }
 
@@ -511,7 +531,7 @@ class Analyser {
             if (dependencies !== null) {
                 // 依赖必须是数组表达式
                 if (dependencies.type !== Syntax.ArrayExpression) {
-                    log.warning(__("Dependencies must be an array expression."), dependencies);
+                    log.warning(__('Dependencies must be an array expression.'), dependencies);
                     return walk.skip();
                 }
 
@@ -520,28 +540,31 @@ class Analyser {
                     if (item.type !== Syntax.Literal ||
                         !isString(item.value)
                     ) {
-                        log.warning(__("Dependencie id must be an literal string."), item);
+                        log.warning(__('Dependencie id must be an literal string.'), item);
                         return null;
                     }
+
                     return item.value;
                 });
                 if (hasInvaLidId) {
                     return walk.skip();
                 }
-            } else {
+            }
+            else {
                 // 没有声明依赖时，factory 的参数个数不能大于 3 个
                 if (modParams.length > 3) {
-                    log.warning(__("When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3."),
+                    log.warning(__('When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3.'),
                         factory);
                     return walk.skip();
                 }
-                modDeps = ["require", "exports", "module"].slice(0, modParams.length);
+
+                modDeps = ['require', 'exports', 'module'].slice(0, modParams.length);
             }
 
             // 初始化模块依赖数据结构
             module = {
                 depends: [],
-                requires: [],
+                requires: []
             };
             this.defineStack.push(this.currentDefine);
             this.defines[modId] = this.currentDefine = module;
@@ -564,7 +587,8 @@ class Analyser {
                 if (depId === 'require') {
                     // 如果依赖为 "require" 则声明局部 require 处理函数
                     this.declareValue(paramName, this.genLocalRequire(modId));
-                } else {
+                }
+                else {
                     // 否则，则将局部变量置为 undefined
                     // 以屏蔽外层同名变量
                     this.declareValue(paramName);
@@ -591,7 +615,8 @@ class Analyser {
             // 2. 如果依赖之前定义过，则只是检查
             if (dependencies === null) {
                 dependencies = genLiteralArray(modDeps.concat(module.depends));
-            } else {
+            }
+            else {
                 // 如果分析出来的依赖模块未在声明的的依赖模块中则需要报错
                 // 分析前，需要先将依赖 ID 转为绝对 ID
                 modDepsAbsolute = modDeps.map((id) => {
@@ -601,7 +626,7 @@ class Analyser {
                     return modDepsAbsolute.indexOf(id) < 0;
                 });
                 if (missModules.length > 0) {
-                    log.warning(__("The dependent modules [%s] are not declared.", missModules.join(", ")),
+                    log.warning(__('The dependent modules [%s] are not declared.', missModules.join(', ')),
                         dependencies);
                 }
 
@@ -626,14 +651,14 @@ class Analyser {
             let log = this.log;
             let args = node.arguments;
             let requireId = args[0];
-            log.debug("process require", node);
+            log.debug('process require', node);
             if (args.length === 0) {
-                log.warning(__("The parameter of require cannot be empty."), node);
+                log.warning(__('The parameter of require cannot be empty.'), node);
                 return walk.skip();
             }
 
             if (!this.currentDefine) {
-                log.error(__("Require must in a define factory."), node);
+                log.error(__('Require must in a define factory.'), node);
                 return walk.skip();
             }
 
@@ -644,15 +669,17 @@ class Analyser {
                         // baseId为null时，为 global require
                         topLevelId = requireId.value;
                         if (!isAbsoluteId(topLevelId)) {
-                            log.warning(__("Relative id is not allowed in global require."), requireId);
+                            log.warning(__('Relative id is not allowed in global require.'), requireId);
                             topLevelId = null;
                         }
-                    } else {
+                    }
+                    else {
                         topLevelId = relative2absolute(requireId.value, baseId);
                     }
                     if (topLevelId !== null) {
                         this.currentDefine.depends.push(topLevelId);
                     }
+
                     break;
                 case Syntax.ArrayExpression:
                     requireId.elements.forEach((id) => {
@@ -662,29 +689,32 @@ class Analyser {
                                 // baseId为null时，为 global require
                                 topLevelId = id.value;
                                 if (!isAbsoluteId(topLevelId)) {
-                                    log.warning(__("Relative id is not allowed in global require."), id);
+                                    log.warning(__('Relative id is not allowed in global require.'), id);
                                     topLevelId = null;
                                 }
-                            } else {
+                            }
+                            else {
                                 topLevelId = relative2absolute(id.value, baseId);
                             }
-                        } else {
-                            log.warning(__("ID should be an literal string."), id);
+                        }
+                        else {
+                            log.warning(__('ID should be an literal string.'), id);
                         }
                         if (topLevelId !== null) {
                             this.currentDefine.requires.push(topLevelId);
                         }
+
                     });
                     break;
                 default:
-                    log.warning(__("ID should be an literal string or array expression."), requireId);
+                    log.warning(__('ID should be an literal string or array expression.'), requireId);
             }
         };
     }
 
     declareGlobalValues() {
-        this.declareValue("define", this.genGlobalDefine());
-        this.declareValue("require", this.genGlobalRequire());
+        this.declareValue('define', this.genGlobalDefine());
+        this.declareValue('require', this.genGlobalRequire());
     }
 
     processCall(name, node, parent) {
@@ -701,16 +731,18 @@ class Analyser {
                 if (node.id !== null) {
                     this.declareValue(node.id.name);
                 }
+
                 this.pushScope();
-                this.declareValue("arguments");
+                this.declareValue('arguments');
                 break;
             case Syntax.FunctionExpression:
                 this.pushScope();
                 if (node.id !== null) {
                     this.declareValue(node.id.name);
                 }
+
                 this.pushScope();
-                this.declareValue("arguments");
+                this.declareValue('arguments');
                 break;
             case Syntax.ArrowFunctionExpression:
                 this.pushScope();
@@ -745,14 +777,14 @@ class Analyser {
     }
 
     processVariable(node, parent) {
-        assert(node.id.type === Syntax.Identifier, __("Variable id must be Identifier."));
+        assert(node.id.type === Syntax.Identifier, __('Variable id must be Identifier.'));
         this.declareValue(node.id.name);
     }
 
     analyse(config) {
         this.reset();
 
-        let code = config.code || "";
+        let code = config.code || '';
         let amdWrapper = !!config.amdWrapper;
         let baseId = config.baseId || null;
         let fileName = config.fileName;
@@ -762,8 +794,9 @@ class Analyser {
         let ast;
 
         if (baseId !== null) {
-            assert(isAbsoluteId(baseId), __("Base id must be absolute."));
+            assert(isAbsoluteId(baseId), __('Base id must be absolute.'));
         }
+
         this.baseId = baseId;
         this.code = code;
         this.fileName = fileName;
@@ -776,7 +809,8 @@ class Analyser {
                 loc: true,
                 tolerant: true
             });
-        } catch (e) {
+        }
+        catch (e) {
             // 这里模拟一个node,
             // 以便定位错误位置
             this.log.error(e.message, {
@@ -803,7 +837,8 @@ class Analyser {
 
         if (fileName) {
             codegenConf.sourceMap = fileName;
-        } else if (baseId) {
+        }
+        else if (baseId) {
             codegenConf.sourceMap = baseId;
         }
 
@@ -823,6 +858,7 @@ class Analyser {
         //         outputSource = outputSource + '_' + hash;
         //     }
         // }
+
         /*
         console.log("==", this.baseId, "===========================");
         console.log(code);
@@ -849,6 +885,5 @@ class Analyser {
     }
 }
 
-
-//exports = module.exports = new Analyser();
+// exports = module.exports = new Analyser();
 module.exports = Analyser;

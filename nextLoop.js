@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 var running = false;
 var penddingList = [];
 
@@ -6,6 +6,7 @@ function call(fn, args) {
     if (!args) {
         return fn();
     }
+
     switch (args.length) {
         case 0:
             return fn();
@@ -33,7 +34,9 @@ function nextLoop(fn, args) {
         penddingList.push([fn, args]);
         return;
     }
+
     running = true;
+
     /**
      * 这里是调用外部函数，
      * 所以有递归调用到 nextLoop
@@ -47,6 +50,7 @@ function nextLoop(fn, args) {
      * 如果有，则执行
      */
     while (penddingList.length) {
+
         /**
          * 这里一定要记录一下长度，
          * 因为有可能执行过程中还会往延迟列表中添加
@@ -65,7 +69,7 @@ function nextLoop(fn, args) {
     running = false;
 }
 
-Object.defineProperty(nextLoop, "running", {
+Object.defineProperty(nextLoop, 'running', {
     get() {
         return running;
     }

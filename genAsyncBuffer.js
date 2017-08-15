@@ -1,14 +1,17 @@
-"use strict";
+'use strict';
 const nextLoop = require('./nextLoop');
-module.exports = function(producer, bufferSize) {
+module.exports = function (producer, bufferSize) {
+
     /**
      * 缓存大小
      */
     bufferSize = bufferSize || 10;
+
     /**
      * 数据缓存
      */
     let buffer = [];
+
     /**
      * 等待列表
      */
@@ -18,15 +21,18 @@ module.exports = function(producer, bufferSize) {
      * 数据源是否已经结束
      */
     let endded = false;
+
     /**
      * 是否预期还有更多数据
      * 在调用 end 后，也许还有被 nextLoop 缓存的 put 操作，所以需要多一个变量判断
      */
     let hasMore = true;
+
     /**
      * 数据是否已经都处理完成
      */
     let finished = false;
+
     /**
      * 数据处理完成回调
      */
@@ -52,7 +58,8 @@ module.exports = function(producer, bufferSize) {
 
         if (!hasMore) {
             tryFinish();
-        } else {
+        }
+        else {
             if (bufLen < bufferSize) {
                 nextLoop(produce);
             }
@@ -117,11 +124,13 @@ module.exports = function(producer, bufferSize) {
             if (!endded) {
                 nextLoop(doPut, [item]);
             }
+
         },
         get: (callback) => {
             if (!finished) {
                 nextLoop(doGet, [callback]);
-            } else {
+            }
+            else {
                 nextLoop(callback, [null]);
             }
         },
@@ -130,6 +139,7 @@ module.exports = function(producer, bufferSize) {
                 endded = true;
                 nextLoop(doEnd, [callback]);
             }
+
         }
     };
-}
+};

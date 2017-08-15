@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 const crypto = require('crypto');
 const Analyser = require('./Analyser');
@@ -7,22 +7,23 @@ let analyser = new Analyser();
 
 function sendIdleMessage() {
     process.send({
-        type: "idle"
+        type: 'idle'
     });
 }
 
 function hash(data, type) {
-    if (typeof type !== "string") {
-        type = "sha256";
+    if (typeof type !== 'string') {
+        type = 'sha256';
     }
+
     let hash = crypto.createHash(type);
     hash.update(data);
     return hash.digest('base64');
 }
 
-process.on("message", (msg) => {
+process.on('message', (msg) => {
     switch (msg.type) {
-        case "analyse":
+        case 'analyse':
             let data = msg.data;
             let config;
             let result;
@@ -30,15 +31,19 @@ process.on("message", (msg) => {
                 if (process.connected) {
                     sendIdleMessage();
                 }
+
                 return;
             }
+
             config = data.config;
             try {
                 result = analyser.analyse(data.analyserConfig);
                 if (!!config.useHash) {
                     config.hash = hash(result.output, config.useHash);
                 }
-            } catch (e) {
+
+            }
+            catch (e) {
                 sendIdleMessage();
                 analyser.printLog();
                 console.error(e.stack);
@@ -48,16 +53,16 @@ process.on("message", (msg) => {
             analyser.printLog();
             delete result.logs;
             process.send({
-                type: "result",
+                type: 'result',
                 data: {
                     config: config,
                     analyseResult: result
                 }
             });
             break;
-        case "end":
+        case 'end':
             process.send({
-                type: "end"
+                type: 'end'
             });
             // setTimeout(() => {
             //     if (process.connected) {

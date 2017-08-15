@@ -1,10 +1,10 @@
-"use strict";
+'use strict';
 
-const fs = require("fs");
+const fs = require('fs');
 const path = require('path');
 const cluster = require('cluster');
 const numCPUs = require('os').cpus().length;
-const walk = require("walk");
+const walk = require('walk');
 const mkdirp = require('mkdirp');
 const genAsyncBuffer = require('./genAsyncBuffer');
 
@@ -20,45 +20,49 @@ function endWith(str, end) {
         if (str.charCodeAt(strLen - i) !== end.charCodeAt(endLen - i)) {
             return false;
         }
+
     }
     return true;
 }
 
 function normalizeRelativePath(path) {
-    let segs = path.split("/");
+    let segs = path.split('/');
 
     segs = segs.filter((seg) => {
-        return seg.length > 0 && seg !== ".";
+        return seg.length > 0 && seg !== '.';
     });
 
-    return segs.join("/");
+    return segs.join('/');
 }
 
 function path2id(path) {
-    let segs = path.split("/");
+    let segs = path.split('/');
     let lastSeg;
     if (segs.length) {
         lastSeg = segs.pop();
-        if (endWith(lastSeg, ".js")) {
+        if (endWith(lastSeg, '.js')) {
             lastSeg = lastSeg.substring(0, lastSeg.length - 3);
         }
+
         segs.push(lastSeg);
     }
-    return segs.join("/");
+
+    return segs.join('/');
 }
 
 function defaultFilter(root, fileStats) {
     let fileName = fileStats.name;
-    return endWith(fileName, ".js");
+    return endWith(fileName, '.js');
 }
 
 function getSourceCode(fileName, encoding) {
-    encoding = encoding || "utf8";
+    encoding = encoding || 'utf8';
     return new Promise((resolve, reject) => {
         fs.readFile(fileName, encoding, (err, data) => {
             if (err) {
                 reject(err);
-            } else {
+            }
+            else {
                 resolve(data);
             }
         });
@@ -71,9 +75,8 @@ function hashToPath(hash) {
         .replace(/\//g, '_')
         .replace(/\+/g, '_');
 
-    return hash.match(/.{2}|./g).join("/");
+    return hash.match(/.{2}|./g).join('/');
 }
-
 
 function writeFile(file, data) {
     mkdirp(path.dirname(file), (err) => {
@@ -81,10 +84,12 @@ function writeFile(file, data) {
             console.error(err);
             return;
         }
+
         fs.writeFile(file, data, (err) => {
             if (err) {
                 console.error(err);
             }
+
         });
     });
 }
@@ -111,12 +116,13 @@ function handleResult(data) {
     distPath = srcPath;
 
     if (config.useHash) {
-        distPath = hashToPath(config.hash) + ".js";
+        distPath = hashToPath(config.hash) + '.js';
     }
-    mapPath = distPath + ".map";
 
-    distFile = config.distDir + "/" + distPath;
-    mapFile = config.distDir + "/" + mapPath;
+    mapPath = distPath + '.map';
+
+    distFile = config.distDir + '/' + distPath;
+    mapFile = config.distDir + '/' + mapPath;
 
     writeFile(distFile, analyseResult.output);
     writeFile(mapFile, analyseResult.map);
@@ -134,7 +140,7 @@ function handleResult(data) {
 function doWalk(options, workers) {
     let srcDir = options.srcDir;
     let distDir = options.distDir;
-    let baseId = options.baseId || "";
+    let baseId = options.baseId || '';
     let encoding = options.encoding;
     let useHash = options.useHash || false;
     let analyserConfig = options.analyserConfig || {};
@@ -143,12 +149,12 @@ function doWalk(options, workers) {
     let walker = walk.walk(srcDir, options.walkOption || {});
     let walkNext = null;
 
-    //let fifo = genFifo();
+    // let fifo = genFifo();
     let fifo = genAsyncBuffer(() => {
         walkNext && walkNext();
     }, numCPUs);
     let srcDirLen = srcDir.length;
-    walker.on("file", (root, fileStats, next) => {
+    walker.on('file', (root, fileStats, next) => {
         let fileName;
         let relativePath;
         let id;
@@ -157,7 +163,7 @@ function doWalk(options, workers) {
             return;
         }
 
-        fileName = root + "/" + fileStats.name;
+        fileName = root + '/' + fileStats.name;
 
         if (fileName.indexOf(srcDir) !== 0) {
             // TODO 报错
@@ -166,7 +172,7 @@ function doWalk(options, workers) {
         }
 
         relativePath = normalizeRelativePath(fileName.substring(srcDirLen));
-        id = path2id(normalizeRelativePath(baseId + "/" + relativePath));
+        id = path2id(normalizeRelativePath(baseId + '/' + relativePath));
 
         getSourceCode(fileName, encoding)
             .then((code) => {
@@ -195,20 +201,20 @@ function doWalk(options, workers) {
     });
 
     let result = [];
-    cluster.on("message", (worker, msg) => {
+    cluster.on('message', (worker, msg) => {
         switch (msg.type) {
-            case "idle":
+            case 'idle':
                 fifo.get((config) => {
                     worker.send({
-                        type: "analyse",
+                        type: 'analyse',
                         data: config
                     });
                 });
                 break;
-            case "result":
+            case 'result':
                 result.push(handleResult(msg.data));
                 break;
-            case "end":
+            case 'end':
                 onWorkerEnd(worker);
                 break;
             default:
@@ -222,10 +228,11 @@ function doWalk(options, workers) {
             console.error('worker %d died (%s). restarting...',
                 worker.process.pid, signal || code);
             cluster.setupMaster({
-                exec: __dirname + "/worker.js"
+                exec: __dirname + '/worker.js'
             });
             workers.splice(index, 1, cluster.fork());
-        } else {
+        }
+        else {
             workers.splice(index, 1);
         }
     });
@@ -234,7 +241,7 @@ function doWalk(options, workers) {
         fifoEndded = true;
         workers.forEach((worker) => {
             worker.send({
-                type: "end"
+                type: 'end'
             });
         });
     }
@@ -257,11 +264,11 @@ function doWalk(options, workers) {
 }
 
 function getOptionFromStdin() {
-    console.error("reading config form stdin...");
+    console.error('reading config form stdin...');
     return new Promise((resolve, reject) => {
         let input = [];
 
-        process.stdin.on("data", (trunk) => {
+        process.stdin.on('data', (trunk) => {
             input.push(trunk);
         });
 
@@ -280,7 +287,7 @@ function main() {
     getOptionFromStdin()
         .then((option) => {
             cluster.setupMaster({
-                exec: __dirname + "/worker.js"
+                exec: __dirname + '/worker.js'
             });
             for (let i = 0; i < numCPUs; i++) {
                 workers.push(cluster.fork());

@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 const child_process = require('child_process');
 const Analyser = require('./Analyser');
@@ -22,9 +22,9 @@ function analyse(config) {
     if (analyser === null) {
         analyser = new Analyser();
     }
+
     return analyser.analyse(config);
 }
-
 
 /**
  * 遍历目录
@@ -42,14 +42,14 @@ function analyse(config) {
  */
 function walk(config) {
     let argv = process.argv;
-    let result = child_process.spawnSync(argv[0], [__dirname + "/walk.js"], {
+    let result = child_process.spawnSync(argv[0], [__dirname + '/walk.js'], {
         input: JSON.stringify(config),
         stdio: [
             'pipe', 'pipe', process.stderr
         ]
     });
     let stdout = result.stdout;
-    return JSON.parse(stdout.toString("utf8"));
+    return JSON.parse(stdout.toString('utf8'));
 }
 
 module.exports = {
