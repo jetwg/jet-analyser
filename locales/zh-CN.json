@@ -17,6 +17,6 @@
     "ID should be an literal string.": "Id 需要是一个字符串字面量.",
     "ID should be an literal string or array expression.": "Id 需要是一个字符串字面量或数组表达式.",
     "Variable id must be Identifier.": "Variable id must be Identifier.",
-    "Base id must be absolute.": "baseId 不能为相对路径.",
+    "Base id must be absolute.": "baseId 不能为相对路径."
 }
 
