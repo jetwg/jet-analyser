@@ -19,11 +19,14 @@ let analyser = null;
  * @return {Object.<output:String, defines:Object, depends:Array, requires:Array, map:String>} 单个文件配置
  */
 function analyse(config) {
+    let result;
     if (analyser === null) {
         analyser = new Analyser();
     }
 
-    return analyser.analyse(config);
+    result = analyser.analyse(config);
+    analyser.printLog();
+    return result;
 }
 
 /**

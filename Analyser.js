@@ -81,6 +81,9 @@ function walk(node, parent, hook, ctx) {
             else if (ret.type === WALK_REPLACE) {
                 return ret.payload;
             }
+            else if (ret.type === WALK_CONTINUE) {
+            // DO NOTHING
+            }
             else {
                 // TODO 不管？
             }
@@ -107,6 +110,9 @@ function walk(node, parent, hook, ctx) {
                     else if (ret.type === WALK_REPLACE) {
                         node[key] = ret.payload;
                         return;
+                    }
+                    else if (ret.type === WALK_CONTINUE) {
+                    // DO NOTHING
                     }
                     else {
                         // TODO 不管？
@@ -141,6 +147,7 @@ function walk(node, parent, hook, ctx) {
 const WALK_SKIP = {};
 const WALK_REMOVE = {};
 const WALK_REPLACE = {};
+const WALK_CONTINUE = {};
 
 walk.skip = () => {
     return {
@@ -158,6 +165,12 @@ walk.replace = (payload) => {
     return {
         type: WALK_REPLACE,
         payload: payload
+    };
+};
+
+walk.continue = () => {
+    return {
+        type: WALK_CONTINUE
     };
 };
 
@@ -435,6 +448,14 @@ class Analyser {
         this.currentScope[name] = value;
     }
 
+    overrideWithCheck(name, node) {
+        if (name === 'define' || name === 'require') {
+            this.log.warning(__('%s have been override.', name), node);
+        }
+
+        this.declareValue(name);
+    }
+
     getValue(name) {
         let index;
         if (hasOwn(this.currentScope, name)) {
@@ -450,6 +471,44 @@ class Analyser {
 
         }
         return undefined;
+    }
+
+    analyseDefineFactory(modId, modDeps, factory, parent) {
+        let modParams = factory.params;
+        // 准备分析 factory 内容
+        this.pushScope();
+        // 处理 factory 参数
+        // 1.定义局部 require
+        // 2.屏蔽外层同名变量
+        modParams.forEach((param, index) => {
+            // 参数名
+            let paramName = param.name;
+            // 依赖ID
+            let depId = null;
+
+            if (index < modDeps.length) {
+                depId = modDeps[index];
+            }
+
+            if (depId === 'require') {
+                // 如果依赖为 "require" 则声明局部 require 处理函数
+                this.declareValue(paramName, this.genLocalRequire(modId));
+            }
+            else {
+                // 否则，则将局部变量置为 undefined
+                // 以屏蔽外层同名变量
+                this.overrideWithCheck(paramName, param);
+            }
+        });
+
+        // 开始分析函数体
+        factory.body = walk(factory.body, {
+            parent: parent,
+            node: factory
+        }, HOOKS, this);
+
+        // 弹出变量作用域
+        this.popScope();
     }
 
     genGlobalDefine() {
@@ -486,8 +545,14 @@ class Analyser {
                     if (args[0].type === Syntax.ArrayExpression) {
                         dependencies = args[0];
                     }
-                    else {
+                    else if (args[0].type === Syntax.Literal && isString(args[0].value)) {
                         id = args[0];
+                    }
+                    else {
+                        // define(a, function(){});
+                        // 此时无法判断出来 a 具体是 id 还是 dependencies
+                        log.error(__('The first argument of define must be array express or string literal.'), args[0]);
+                        return walk.skip();
                     }
                     factory = args[1];
                     break;
@@ -515,32 +580,41 @@ class Analyser {
                 modId = id.value;
             }
             else {
-                assert(this.baseId !== null, __('Base ID is undefined.'));
+                if (this.baseId === null) {
+                    log.error(__('options.baseId is required for anonymous module.'), node);
+                    return walk.skip();
+                }
+
                 modId = this.baseId;
             }
 
-            // 校验factory
-            if (factory.type !== Syntax.FunctionExpression) {
-                log.warning(__('Factory must be an function expression.'), factory);
-                return walk.skip();
-            }
+            // 判断 factory 是否为可分析的函数类型
+            let factoryIsFunction = (
+            factory.type === Syntax.FunctionExpression ||
+                factory.type === Syntax.ArrowFunctionExpression ||
+                factory.type === Syntax.FunctionDeclaration
+            );
 
-            modParams = factory.params;
+            if (factoryIsFunction) {
+                modParams = factory.params;
+            }
 
             // 校验并提取模块依赖关系
             if (dependencies !== null) {
                 // 依赖必须是数组表达式
                 if (dependencies.type !== Syntax.ArrayExpression) {
-                    log.warning(__('Dependencies must be an array expression.'), dependencies);
+                    log.error(__('Dependencies must be an array expression.'), dependencies);
                     return walk.skip();
                 }
 
                 let hasInvaLidId = false;
                 modDeps = dependencies.elements.map((item) => {
+                    // 要求每个依赖项也必须是字符串字面量，不然没法匹配 factory 形参中的 require 等
                     if (item.type !== Syntax.Literal ||
                         !isString(item.value)
                     ) {
-                        log.warning(__('Dependencie id must be an literal string.'), item);
+                        hasInvaLidId = true;
+                        log.error(__('Dependencie id must be an literal string.'), item);
                         return null;
                     }
 
@@ -551,14 +625,20 @@ class Analyser {
                 }
             }
             else {
-                // 没有声明依赖时，factory 的参数个数不能大于 3 个
-                if (modParams.length > 3) {
-                    log.warning(__('When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3.'),
-                        factory);
-                    return walk.skip();
-                }
+                // 没有指定依赖的情况下，有两种处理方式
+                // 1.如果 factory 是函数，则分析函数体并且填充依赖数组
+                // 2.否则，依赖为固定数组 ['require', 'exports', 'module']
+                modDeps = ['require', 'exports', 'module'];
+                if (factoryIsFunction) {
+                    // 没有声明依赖时，factory 的参数个数不能大于 3 个
+                    if (modParams.length > 3) {
+                        log.error(__('When there is no declaration of dependency, the number of arguments for factory cannot be greater than 3.'),
+                            factory);
+                        return walk.skip();
+                    }
 
-                modDeps = ['require', 'exports', 'module'].slice(0, modParams.length);
+                    modDeps = modDeps.slice(0, modParams.length);
+                }
             }
 
             // 初始化模块依赖数据结构
@@ -568,44 +648,18 @@ class Analyser {
             };
             this.defineStack.push(this.currentDefine);
             this.defines[modId] = this.currentDefine = module;
+            // 校验factory
+            if (factoryIsFunction) {
+                this.analyseDefineFactory(modId, modDeps, factory, {
+                    parent: parent,
+                    node: node
+                });
+            }
 
-            // 准备分析 factory 内容
-            this.pushScope();
-            // 处理 factory 参数
-            // 1.定义局部 require
-            // 2.屏蔽外层同名变量
-            modParams.forEach((param, index) => {
-                // 参数名
-                let paramName = param.name;
-                // 依赖ID
-                let depId = null;
-
-                if (index < modDeps.length) {
-                    depId = modDeps[index];
-                }
-
-                if (depId === 'require') {
-                    // 如果依赖为 "require" 则声明局部 require 处理函数
-                    this.declareValue(paramName, this.genLocalRequire(modId));
-                }
-                else {
-                    // 否则，则将局部变量置为 undefined
-                    // 以屏蔽外层同名变量
-                    this.declareValue(paramName);
-                }
-            });
-
-            // 开始分析函数体
-            factory.body = walk(factory.body, {
-                parent: parent,
-                node: factory
-            }, HOOKS, this);
-
-            // 弹出变量作用域
-            this.popScope();
             // 弹出 define
             this.currentDefine = this.defineStack.pop();
 
+            // 生成id
             if (id === null) {
                 id = genLiteral(modId);
             }
@@ -654,11 +708,6 @@ class Analyser {
             log.debug('process require', node);
             if (args.length === 0) {
                 log.warning(__('The parameter of require cannot be empty.'), node);
-                return walk.skip();
-            }
-
-            if (!this.currentDefine) {
-                log.error(__('Require must in a define factory.'), node);
                 return walk.skip();
             }
 
@@ -726,10 +775,12 @@ class Analyser {
 
     processFunction(node, parent) {
         let params = node.params;
+        let name;
         switch (node.type) {
             case Syntax.FunctionDeclaration:
                 if (node.id !== null) {
-                    this.declareValue(node.id.name);
+                    name = node.id.name;
+                    this.overrideWithCheck(name, node.id);
                 }
 
                 this.pushScope();
@@ -738,7 +789,8 @@ class Analyser {
             case Syntax.FunctionExpression:
                 this.pushScope();
                 if (node.id !== null) {
-                    this.declareValue(node.id.name);
+                    name = node.id.name;
+                    this.overrideWithCheck(name, node.id);
                 }
 
                 this.pushScope();
@@ -751,7 +803,8 @@ class Analyser {
 
         if (params && params.length) {
             params.forEach((param) => {
-                this.declareValue(param.name);
+                name = param.name;
+                this.overrideWithCheck(name, param);
             });
         }
 
@@ -778,7 +831,8 @@ class Analyser {
 
     processVariable(node, parent) {
         assert(node.id.type === Syntax.Identifier, __('Variable id must be Identifier.'));
-        this.declareValue(node.id.name);
+        let name = node.id.name;
+        this.overrideWithCheck(name, node.id);
     }
 
     analyse(config) {
@@ -885,5 +939,4 @@ class Analyser {
     }
 }
 
-// exports = module.exports = new Analyser();
 module.exports = Analyser;

@@ -7,7 +7,7 @@ let inputFile = "../Analyser.js";
 let code = fs.readFileSync(inputFile, "utf8");
 let oldConfig = require(outputFile);
 
-let newConfig = oldConfig;
+let newConfig = {};
 
 walk(esprima.parse(code), null, {
     CallExpression: (node, parent) => {
@@ -18,5 +18,13 @@ walk(esprima.parse(code), null, {
         }
     }
 });
+
+Object.keys(oldConfig).reduce((conf, key) => {
+    let newKey = key.replace(/^__/, "");
+    if (!conf[newKey]) {
+        conf["__" + newKey] = oldConfig[key];
+    }
+    return conf;
+}, newConfig);
 
 fs.writeFileSync(outputFile, JSON.stringify(newConfig, null, 2));
