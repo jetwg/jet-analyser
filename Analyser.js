@@ -281,6 +281,7 @@ class Analyser {
     }
 
     reset() {
+        this.hasError = false;
         this.baseId = null;
         this.code = null;
         this.codeLines = null;
@@ -316,6 +317,10 @@ class Analyser {
 
                 if (node && node.loc) {
                     log.loc = node.loc.start;
+                }
+
+                if (level >= LOG_LEVEL.ERROR) {
+                    this.hasError = true;
                 }
 
                 this.logs.push(log);
@@ -391,6 +396,37 @@ class Analyser {
         }
     }
 
+    drawArrow(line, column) {
+        let index;
+        let code;
+        let buf = [];
+        for (index = 0; index < column; index++) {
+            code = line.charCodeAt(index);
+            if (code === 9) // \t
+            {
+                buf.push('\t');
+            }
+            else if (code === 10) // \n
+            {
+                buf = [];
+            }
+            else if (
+                (code >= 0x4e00 && code <= 0x9fbf) // CJK(中日韩)统一表意字符
+                ||
+                (code >= 0xF900 && code <= 0xFAFF) // CJK 兼容象形文字
+                ||
+                (code >= 0xFF00 && code <= 0xFFEF) // 全角符号
+            ) {
+                buf.push('  ');
+            }
+            else {
+                buf.push(' ');
+            }
+        }
+        buf.push(colors.green('^'));
+        return buf.join('');
+    }
+
     showLocation(loc, stream) {
         const MAX_LINE = 80;
         const MIN_LINE = 10;
@@ -417,8 +453,8 @@ class Analyser {
             output.push(colors.green('...'));
         }
 
-        output.push('\n', Array(arrow + 1).join(' '));
-        output.push(colors.green('^'), '\n');
+        line = output.join('');
+        output.push('\n', this.drawArrow(line, arrow), '\n');
 
         stream.write(output.join(''));
     }
@@ -925,9 +961,8 @@ class Analyser {
         console.log(this.logs);
         console.log("=============================================");
         //*/
-        // this.printLog(LOG_LEVEL.DEBUG);
         return {
-            // state:"success" | "fail",
+            state: this.hasError ? 'fail' : 'success',
             output: output.code,
             defines: this.defines,
             depends: this.depends,

@@ -131,6 +131,7 @@ function handleResult(data) {
         src: srcPath,
         dist: distPath,
         map: mapPath,
+        state: analyseResult.state,
         defines: analyseResult.defines,
         depends: analyseResult.depends,
         requires: analyseResult.requires
@@ -227,9 +228,7 @@ function doWalk(options, workers) {
         if (!fifoEndded) {
             console.error('worker %d died (%s). restarting...',
                 worker.process.pid, signal || code);
-            cluster.setupMaster({
-                exec: __dirname + '/worker.js'
-            });
+            setupMaster();
             workers.splice(index, 1, cluster.fork());
         }
         else {
@@ -282,13 +281,18 @@ function getOptionFromStdin() {
     });
 }
 
+function setupMaster() {
+    cluster.setupMaster({
+        exec: __dirname + '/worker.js',
+        args: ['--color']
+    });
+}
+
 function main() {
     let workers = [];
     getOptionFromStdin()
         .then((option) => {
-            cluster.setupMaster({
-                exec: __dirname + '/worker.js'
-            });
+            setupMaster();
             for (let i = 0; i < numCPUs; i++) {
                 workers.push(cluster.fork());
             }
