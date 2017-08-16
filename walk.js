@@ -236,8 +236,11 @@ function doWalk(options, workers) {
         }
     });
 
+    let expectEnds = 0;
+
     function onFifoEnd() {
         fifoEndded = true;
+        expectEnds = workers.length;
         workers.forEach((worker) => {
             worker.send({
                 type: 'end'
@@ -252,7 +255,7 @@ function doWalk(options, workers) {
         worker.exitedAfterDisconnect = true;
         worker.disconnect();
         enddedWorkers++;
-        if (enddedWorkers >= workers.length) {
+        if (enddedWorkers >= expectEnds) {
             onFinish && onFinish(result);
         }
     }
