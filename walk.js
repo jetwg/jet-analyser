@@ -71,7 +71,7 @@ function getSourceCode(fileName, encoding) {
 function hashToPath(hash) {
     hash = hash
         .substring(0, 8)
-        .toString()
+        .toLowerCase()
         .replace(/\//g, '_')
         .replace(/\+/g, '_');
 
