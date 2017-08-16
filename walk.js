@@ -132,9 +132,7 @@ function handleResult(data) {
         dist: distPath,
         map: mapPath,
         state: analyseResult.state,
-        defines: analyseResult.defines,
-        depends: analyseResult.depends,
-        requires: analyseResult.requires
+        defines: analyseResult.defines
     };
 }
 

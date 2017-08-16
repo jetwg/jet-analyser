@@ -23,7 +23,7 @@ const jet = require('jet-analyser');
 jet.analyse({
     code:"...",                // 【必选】源代码
     amdWrapper:false|true,     // 【可选】是否添加 AMD 包装，默认 false
-    baseId: "a/b/c/d",         // 【匿名模块必选】该模块的绝对路径，用于计算相对路径
+    baseId: "a/b/c/d",         // 【必选】该模块的绝对路径，用于计算相对路径
     fileName: "a/b/c/d.js",    // 【可选】sourceMap 的源文件名
     sourceMapRoot: "http://foo.com/bar,", // 【可选】sourceMap 根路径，可以是URL
     beautify: true             // 【可选】是否格式化代码

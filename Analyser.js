@@ -290,10 +290,7 @@ class Analyser {
         this.depends = [];
         this.requires = [];
         this.defineStack = [];
-        this.currentDefine = {
-            depends: this.depends,
-            requires: this.requires
-        };
+        this.currentDefine = null;
 
         this.scopeStack = [];
         this.currentScope = {};
@@ -876,20 +873,23 @@ class Analyser {
 
         let code = config.code || '';
         let amdWrapper = !!config.amdWrapper;
-        let baseId = config.baseId || null;
+        let baseId = config.baseId;
         let fileName = config.fileName;
         let sourceMapRoot = config.sourceMapRoot || null;
         // let useHash = !!config.useHash;
         let beautify = !!config.beautify;
         let ast;
 
-        if (baseId !== null) {
-            assert(isAbsoluteId(baseId), __('Base id must be absolute.'));
-        }
+        assert(isAbsoluteId(baseId), __('Base id must be absolute.'));
 
         this.baseId = baseId;
         this.code = code;
         this.fileName = fileName;
+
+        this.defines[baseId] = this.currentDefine = {
+            depends: this.depends,
+            requires: this.requires
+        };
 
         try {
             ast = parse(code, {
@@ -965,8 +965,6 @@ class Analyser {
             state: this.hasError ? 'fail' : 'success',
             output: output.code,
             defines: this.defines,
-            depends: this.depends,
-            requires: this.requires,
             map: output.map.toString(),
             // source: outputSource,
             // logs: this.logs
