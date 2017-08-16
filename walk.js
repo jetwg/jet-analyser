@@ -61,8 +61,7 @@ function getSourceCode(fileName, encoding) {
         fs.readFile(fileName, encoding, (err, data) => {
             if (err) {
                 reject(err);
-            }
-            else {
+            } else {
                 resolve(data);
             }
         });
@@ -72,6 +71,7 @@ function getSourceCode(fileName, encoding) {
 function hashToPath(hash) {
     hash = hash
         .substring(0, 8)
+        .toString()
         .replace(/\//g, '_')
         .replace(/\+/g, '_');
 
@@ -228,8 +228,7 @@ function doWalk(options, workers) {
                 worker.process.pid, signal || code);
             setupMaster();
             workers.splice(index, 1, cluster.fork());
-        }
-        else {
+        } else {
             workers.splice(index, 1);
         }
     });
