@@ -61,7 +61,8 @@ function getSourceCode(fileName, encoding) {
         fs.readFile(fileName, encoding, (err, data) => {
             if (err) {
                 reject(err);
-            } else {
+            }
+            else {
                 resolve(data);
             }
         });
@@ -127,13 +128,14 @@ function handleResult(data) {
     writeFile(distFile, analyseResult.output);
     writeFile(mapFile, analyseResult.map);
 
-    return {
+    delete analyseResult.output;
+    delete analyseResult.map;
+
+    return Object.assign({
         src: srcPath,
         dist: distPath,
         map: mapPath,
-        state: analyseResult.state,
-        defines: analyseResult.defines
-    };
+    }, analyseResult);
 }
 
 function doWalk(options, workers) {
@@ -186,7 +188,7 @@ function doWalk(options, workers) {
                         analyserConfig, {
                             code: code,
                             baseId: id,
-                            fileName: relativePath
+                            fileName: relativePath,
                         })
                 };
                 walkNext = next;
@@ -228,7 +230,8 @@ function doWalk(options, workers) {
                 worker.process.pid, signal || code);
             setupMaster();
             workers.splice(index, 1, cluster.fork());
-        } else {
+        }
+        else {
             workers.splice(index, 1);
         }
     });

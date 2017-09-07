@@ -36,14 +36,14 @@ process.on('message', (msg) => {
             }
 
             config = data.config;
+            console.error("analyse \"" + config.relativePath + "\"");
             try {
                 result = analyser.analyse(data.analyserConfig);
                 if (!!config.useHash) {
                     config.hash = hash(result.output, config.useHash);
                 }
 
-            }
-            catch (e) {
+            } catch (e) {
                 sendIdleMessage();
                 analyser.printLog();
                 console.error(e.stack);

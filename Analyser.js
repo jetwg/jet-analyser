@@ -3,6 +3,7 @@ const parse = require('acorn').parse;
 const escodegen = require('escodegen');
 const estemplate = require('estemplate');
 const estraverse = require('estraverse');
+const UglifyJS = require('uglify-js');
 const colors = require('colors/safe');
 const i18n = require('i18n');
 const __ = i18n.__;
@@ -483,7 +484,7 @@ class Analyser {
 
     overrideWithCheck(name, node) {
         if (name === 'define' || name === 'require') {
-            this.log.warning(__('%s have been override.', name), node);
+            this.log.error(__('%s have been override.', name), node);
         }
 
         this.declareValue(name);
@@ -713,7 +714,7 @@ class Analyser {
                     return modDepsAbsolute.indexOf(id) < 0;
                 });
                 if (missModules.length > 0) {
-                    log.warning(__('The dependent modules [%s] are not declared.', missModules.join(', ')),
+                    log.error(__('The dependent modules [%s] are not declared.', missModules.join(', ')),
                         dependencies);
                 }
 
@@ -751,12 +752,15 @@ class Analyser {
                         // baseId为null时，为 global require
                         topLevelId = requireId.value;
                         if (!isAbsoluteId(topLevelId)) {
-                            log.warning(__('Relative id is not allowed in global require.'), requireId);
+                            log.error(__('Relative id is not allowed in global require.'), requireId);
                             topLevelId = null;
                         }
                     }
                     else {
                         topLevelId = relative2absolute(requireId.value, baseId);
+                    }
+                    if(this.currentDefine.isGlobal){
+                        log.error(__('Synchronization require can not be outside define factory.'), requireId);
                     }
                     if (topLevelId !== null) {
                         this.currentDefine.depends.push(topLevelId);
@@ -771,7 +775,7 @@ class Analyser {
                                 // baseId为null时，为 global require
                                 topLevelId = id.value;
                                 if (!isAbsoluteId(topLevelId)) {
-                                    log.warning(__('Relative id is not allowed in global require.'), id);
+                                    log.error(__('Relative id is not allowed in global require.'), id);
                                     topLevelId = null;
                                 }
                             }
@@ -789,7 +793,7 @@ class Analyser {
                     });
                     break;
                 default:
-                    log.warning(__('ID should be an literal string or array expression.'), requireId);
+                    log.error(__('ID should be an literal string or array expression.'), requireId);
             }
         };
     }
@@ -870,7 +874,6 @@ class Analyser {
 
     analyse(config) {
         this.reset();
-
         let code = config.code || '';
         let amdWrapper = !!config.amdWrapper;
         let baseId = config.baseId;
@@ -886,9 +889,11 @@ class Analyser {
         this.code = code;
         this.fileName = fileName;
 
-        this.defines[baseId] = this.currentDefine = {
+        // this.defines[baseId] =
+        this.currentDefine = {
             depends: this.depends,
-            requires: this.requires
+            requires: this.requires,
+            isGlobal: true
         };
 
         try {
@@ -928,26 +933,42 @@ class Analyser {
         if (fileName) {
             codegenConf.sourceMap = fileName;
         }
-        else if (baseId) {
-            codegenConf.sourceMap = baseId;
-        }
 
         if (sourceMapRoot) {
             codegenConf.sourceMapRoot = sourceMapRoot;
         }
 
         let output = escodegen.generate(ast, codegenConf);
-        // let outputSource = source ? source : baseId;
+        let outputCode = output.code;
+        let sourceMapContent = output.map.toString();
 
-        // if (useHash) {
-        //     let hash = md5(output.code);
+        if (!beautify) {
+            let sources = {};
+            sources[fileName] = outputCode;
+            output = UglifyJS.minify(sources, {
+                toplevel: true,
+                sourceMap: {
+                    content: sourceMapContent
+                }
+            });
+            if (output.error) {
+                let e = output.error;
+                // 这里模拟一个node,
+                // 以便定位错误位置
+                this.log.error(e.message, {
+                    loc: {
+                        start: {
+                            line: e.line,
+                            column: e.col
+                        }
+                    }
+                });
+                throw output.error;
+            }
 
-        //     if (/\.js$/.test(outputSource)) {
-        //         outputSource = outputSource.replace(/\.js$/, `_${hash}.js`);
-        //     } else {
-        //         outputSource = outputSource + '_' + hash;
-        //     }
-        // }
+            outputCode = output.code;
+            sourceMapContent = output.map;
+        }
 
         /*
         console.log("==", this.baseId, "===========================");
@@ -965,7 +986,9 @@ class Analyser {
             state: this.hasError ? 'fail' : 'success',
             output: output.code,
             defines: this.defines,
-            map: output.map.toString(),
+            depends: this.depends,
+            requires:this.requires,
+            map: sourceMapContent
             // source: outputSource,
             // logs: this.logs
         };
