@@ -2,6 +2,12 @@
 
 const child_process = require('child_process');
 const Analyser = require('./Analyser');
+const workerFarm = require('worker-farm');
+const walkMod = require('walk');
+const path = require('path');
+const workers = workerFarm({
+    maxRetries: 0
+}, require.resolve('./child'))
 
 let analyser = null;
 
@@ -55,8 +61,121 @@ function walk(config) {
     return JSON.parse(stdout.toString('utf8'));
 }
 
+function defaultFilter(inputPath) {
+    return path.extname(inputPath) === '.js'; // endWith(fileName, '.js');
+}
+
+function normalizeRelativePath(path) {
+    let segs = path.split('/');
+    segs = segs.filter(seg => seg.length > 0 && seg !== '.');
+    return segs.join('/');
+}
+
+function path2id(filepath) {
+    let segs = filepath.split('/');
+    let lastSeg;
+    if (segs.length) {
+        lastSeg = segs.pop();
+        if (path.extname(lastSeg) === '.js') {
+            lastSeg = lastSeg.substring(0, lastSeg.length - 3);
+        }
+
+        segs.push(lastSeg);
+    }
+
+    return segs.join('/');
+}
+
+
+function run(config, cb) {
+    let totalNum = 0;
+    let finishedNum = 0;
+    let noMoreInput = false;
+    let results = [];
+
+    let {srcDir, files} = config;
+    console.log('srcDir', config);
+    function runOne(inputPath, inputContent, next) {
+
+        if (defaultFilter(inputPath) !== true) {
+            next();
+            return;
+        }
+
+        if (inputPath.indexOf(srcDir) !== 0) {
+            // TODO 报错
+            next();
+            return;
+        }
+
+        let relativePath = normalizeRelativePath(inputPath.substring(srcDir.length));
+        let id = path2id(normalizeRelativePath(config.baseId + '/' + relativePath));
+        console.log('id', id);
+        let opt = {
+            inputPath,
+            inputContent,
+            useHash: '',
+            baseId: id,
+            amdWrapper: false,
+            beautify: true // 是否格式化代码
+        };
+
+        totalNum++;
+        workers(opt, function (err, result) {
+            finishedNum++;
+
+            if (err) {
+                workerFarm.end(workers);
+                console.error(err);
+                cb(err);
+                // process.exitCode(201);
+                return;
+            }
+            results.push(result);
+            if (noMoreInput) {
+                if (finishedNum === totalNum) {
+                    workerFarm.end(workers);
+                    cb(null, results);
+                }
+            }
+        });
+        next();
+    }
+
+    if (files) {
+        files.forEach(function (item) {
+            runOne(item.path, item.content, function () {});
+        });
+        console.log('no more input');
+        noMoreInput = true;
+    }
+    else {
+        let walker = walkMod.walk(srcDir, config.walkOption || {});
+        walker.on('file', (root, fileStats, next) => {
+            let fileName = root + '/' + fileStats.name;
+            runOne(fileName, null, next);
+        });
+
+        walker.on('end', () => {
+            console.log('no more input');
+            noMoreInput = true;
+        });
+    }
+
+    // let argv = process.argv;
+    // let result = child_process.spawnSync(argv[0], [__dirname + '/walk.js'], {
+    //     input: JSON.stringify(config),
+    //     stdio: [
+    //         'pipe', 'pipe', process.stderr
+    //     ]
+    // });
+    // let stdout = result.stdout;
+    // return JSON.parse(stdout.toString('utf8'));
+}
+
 module.exports = {
     analyse: analyse,
     walk: walk,
+    run: run,
     LOG_LEVEL: Analyser.LOG_LEVEL
 };
